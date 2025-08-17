@@ -6,11 +6,129 @@ from email.message import EmailMessage
 from datetime import datetime, timedelta
 import json
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = 'your-secret-key-here'
+
+# Email Configuration (SAFE - from environment variables)
+MAIL_USERNAME = os.getenv('MAIL_USERNAME')
+MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
+MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtp-mail.outlook.com')
+MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
+
+def send_booking_emails(booking_data):
+    """Send confirmation emails to both customer and admin"""
+    try:
+        # Customer confirmation email
+        customer_subject = "✅ Afspraak Bevestiging - Koree Autoservice"
+        customer_body = f"""
+Beste {booking_data['name']},
+
+Uw afspraak bij Koree Autoservice is bevestigd!
+
+📅 Afspraak Details:
+• Naam: {booking_data['name']}
+• Email: {booking_data['email']}
+• Telefoon: {booking_data.get('phone', 'Niet opgegeven')}
+• Service: {booking_data['service']}
+• Datum: {booking_data['date']}
+• Tijd: {booking_data['time']}
+• Bericht: {booking_data.get('message', 'Geen specifieke wensen')}
+
+📍 Onze Locatie:
+Koree Autoservice
+Fenacoliuslaan 60-64
+3143 AE Maassluis
+Telefoon: +31 6 23967989
+
+⚠️ Belangrijk:
+• Kom 10 minuten voor uw afspraak
+• Neem uw rijbewijs en autopapieren mee
+• Bij annulering, bel minimaal 24 uur van tevoren
+
+Voor vragen kunt u contact opnemen via:
+📞 +31 6 23967989
+📧 info@koreeautoservices.nl
+💬 WhatsApp: https://wa.me/31623967989
+
+Met vriendelijke groet,
+Team Koree Autoservice
+        """
+
+        # Admin notification email
+        admin_subject = f"🔔 Nieuwe Afspraak - {booking_data['name']} op {booking_data['date']}"
+        admin_body = f"""
+Nieuwe afspraak boeking ontvangen:
+
+👤 Klant Informatie:
+• Naam: {booking_data['name']}
+• Email: {booking_data['email']}
+• Telefoon: {booking_data.get('phone', 'Niet opgegeven')}
+
+📅 Afspraak Details:
+• Service: {booking_data['service']}
+• Datum: {booking_data['date']}
+• Tijd: {booking_data['time']}
+• Bericht: {booking_data.get('message', 'Geen specifieke wensen')}
+
+🕐 Geboekt op: {datetime.now().strftime('%d-%m-%Y om %H:%M')}
+
+Booking ID: {booking_data.get('booking_id', 'N/A')}
+        """
+
+        # Send customer email
+        customer_sent = send_email(
+            to_email=booking_data['email'],
+            subject=customer_subject,
+            body=customer_body
+        )
+
+        # Send admin email
+        admin_sent = send_email(
+            to_email=ADMIN_EMAIL,
+            subject=admin_subject,
+            body=admin_body
+        )
+
+        return customer_sent, admin_sent
+
+    except Exception as e:
+        print(f"❌ Email sending error: {str(e)}")
+        return False, False
+
+def send_email(to_email, subject, body):
+    """Send email using Outlook SMTP"""
+    try:
+        if not all([MAIL_USERNAME, MAIL_PASSWORD, to_email]):
+            print("❌ Missing email configuration")
+            return False
+
+        # Create email message
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = f"Koree Autoservice <{MAIL_USERNAME}>"
+        msg['To'] = to_email
+        msg.set_content(body)
+
+        # Send email using Outlook SMTP
+        with smtplib.SMTP(MAIL_SERVER, MAIL_PORT) as server:
+            server.starttls()
+            server.login(MAIL_USERNAME, MAIL_PASSWORD)
+            server.send_message(msg)
+
+        print(f"✅ Email sent successfully to {to_email}")
+        return True
+
+    except Exception as e:
+        print(f"❌ Email error: {str(e)}")
+        return False
 
 def init_db():
     conn = sqlite3.connect("database.db")
@@ -100,6 +218,7 @@ def book_appointment():
         # Check if timeslot is available
         c.execute("SELECT id FROM bookings WHERE date = ? AND time = ? AND status != 'cancelled'", (date, time))
         if c.fetchone():
+            conn.close()
             return jsonify({"error": "Deze tijd is al geboekt"}), 409
 
         # Save booking
@@ -112,13 +231,38 @@ def book_appointment():
         conn.commit()
         conn.close()
 
+        # Prepare booking data for emails
+        booking_data = {
+            'booking_id': booking_id,
+            'name': name,
+            'email': email,
+            'phone': phone,
+            'date': date,
+            'time': time,
+            'service': service,
+            'message': message
+        }
+
+        # Send emails
+        customer_sent, admin_sent = send_booking_emails(booking_data)
+
+        # Prepare response message
+        response_message = "Afspraak succesvol geboekt!"
+        if customer_sent:
+            response_message += " Een bevestigingsmail is verzonden."
+        else:
+            response_message += " Let op: bevestigingsmail kon niet worden verzonden."
+
         return jsonify({
-            "message": "Afspraak succesvol geboekt!",
-            "booking_id": booking_id
+            "message": response_message,
+            "booking_id": booking_id,
+            "email_sent": customer_sent,
+            "admin_notified": admin_sent
         }), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"❌ Booking error: {str(e)}")
+        return jsonify({"error": "Er is een fout opgetreden. Probeer het opnieuw."}), 500
 
 @app.route("/api/reviews", methods=["GET"])
 def get_reviews():
@@ -218,7 +362,7 @@ def get_reviews():
                 for i, review in enumerate(recent_reviews):
                     print(f"  {i+1}. {review['author']} - {review['date']} - Local Guide: {review['is_local_guide']}")
                 
-                # Prepare response data
+                # Prepare response data - REMOVED the 2-year message
                 response_data = {
                     "success": True,
                     "data": {
@@ -326,5 +470,11 @@ def debug_reviews():
         return jsonify({"error": str(e)})
 
 if __name__ == "__main__":
+    # Check if email is configured
+    if not MAIL_USERNAME or not MAIL_PASSWORD:
+        print("⚠️  WARNING: Email not configured. Add credentials to .env file")
+    else:
+        print(f"✅ Email configured for: {MAIL_USERNAME}")
+    
     init_db()
     app.run(debug=True)

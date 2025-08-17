@@ -29,10 +29,51 @@ body {
 }
 
 .navbar-brand {
-    font-size: 1.5rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: var(--white) !important;
     text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.navbar-brand:hover {
+    transform: translateY(-2px);
+}
+
+/* LOGO OPTION 1: Image Logo (Professional sizing) */
+.logo-img {
+    height: 42px;
+    width: auto;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+    transition: all 0.3s ease;
+}
+
+.navbar-brand:hover .logo-img {
+    transform: scale(1.05);
+}
+
+/* LOGO OPTION 2: Text Logo (Professional styling) */
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+    align-items: flex-start;
+}
+
+.logo-main {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--white);
+    letter-spacing: 0.5px;
+    margin-bottom: -2px;
+}
+
+.logo-sub {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--accent-color);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
 }
 
 .nav-link {
@@ -461,5 +502,18 @@ section {
         width: 40px;
         height: 40px;
         font-size: 1rem;
+    }
+    
+    /* Mobile logo adjustments */
+    .logo-img {
+        height: 38px;
+    }
+    
+    .logo-main {
+        font-size: 1.2rem;
+    }
+    
+    .logo-sub {
+        font-size: 0.6rem;
     }
 }

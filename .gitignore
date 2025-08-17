@@ -36,8 +36,9 @@ Thumbs.db
 # Logs
 *.log
 
-# Environment variables
+# Environment variables (CRITICAL!)
 .env
+*.env
 .env.local
 .env.production
 
