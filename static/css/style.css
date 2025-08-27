@@ -488,6 +488,34 @@ section {
     scroll-margin-top: 80px;
 }
 
+/* Enhanced time selection styling */
+select#time option:disabled {
+    color: #dc3545 !important;
+    font-style: italic;
+    text-decoration: line-through;
+    background-color: #f8f9fa;
+}
+
+select#time option[value=""]:not(:disabled) {
+    font-weight: bold;
+    color: #495057;
+}
+
+select#time option:not(:disabled):not([value=""]) {
+    color: #28a745;
+    font-weight: bold;
+}
+
+#time-loading {
+    font-size: 0.9em;
+    color: #666;
+    margin-top: 5px;
+}
+
+#time-loading i {
+    margin-right: 5px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .hero-content h1 {
