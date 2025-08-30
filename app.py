@@ -5,26 +5,26 @@ import requests
 from email.message import EmailMessage
 from datetime import datetime, timedelta
 import json
-import os
+import os  # ← ADD THIS MISSING IMPORT!
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables (AWS will provide these, not .env file)
 load_dotenv()
 
 app = Flask(__name__)
 
-# Configuration
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
+# Configuration - AWS will provide these via environment variables
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-# Database Configuration for SQLite
-DB_FILE = os.getenv('DB_FILE', 'koree_autoservice.db')
+# Database Configuration for SQLite - AWS path
+DB_FILE = os.environ.get('DB_FILE', '/var/app/current/koree_autoservice.db')
 
-# Email Configuration
-MAIL_USERNAME = os.getenv('MAIL_USERNAME')
-MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
-MAIL_SERVER = os.getenv('MAIL_SERVER', 'smtpout.secureserver.net')
-MAIL_PORT = int(os.getenv('MAIL_PORT', 587))
-ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
+# Email Configuration - AWS environment variables
+MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtpout.secureserver.net')
+MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
 
 def get_db_connection():
     """Create SQLite database connection"""
