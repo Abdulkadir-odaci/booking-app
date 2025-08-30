@@ -1,47 +1,31 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+# Environment variables (NEVER commit these!)
+.env
+.env.production
+*.csv
 
-# Flask
-instance/
-.webassets-cache
+# AWS credentials
+koree-deployer_accessKeys.csv
 
-# Database
+# Database files
 *.db
-*.sqlite3
-database.db
+koree_autoservice.db
 
-# Cache files
-reviews_cache.json
-*.cache
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
 
-# IDE
+# IDE files
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
 # Logs
+logs/
 *.log
 
-# Environment variables (CRITICAL!)
-.env
-*.env
-.env.local
-.env.production
-
-# Temporary files
-*.tmp
-*.temp
+# Elastic Beanstalk
+.elasticbeanstalk/
