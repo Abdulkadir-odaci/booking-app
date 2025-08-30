@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 # Load environment variables (AWS will provide these, not .env file)
 load_dotenv()
 
+# Ensure Flask app instance
 app = Flask(__name__)
 
 # Configuration - AWS will provide these via environment variables
