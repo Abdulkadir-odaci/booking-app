@@ -17,8 +17,22 @@ app = Flask(__name__)
 # Configuration - AWS will provide these via environment variables
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-# Database Configuration for SQLite - AWS path
-DB_FILE = os.environ.get('DB_FILE', '/var/app/current/koree_autoservice.db')
+# IMPROVE DATABASE CONFIGURATION:
+# Database Configuration for SQLite - AWS path with fallback
+if os.environ.get('AWS_EXECUTION_ENV'):
+    # Running on AWS
+    DB_FILE = '/var/app/current/koree_autoservice.db'
+    print("🌟 AWS Environment detected - using AWS database path")
+elif os.environ.get('DB_FILE'):
+    # Custom environment variable
+    DB_FILE = os.environ.get('DB_FILE')
+    print(f"🔧 Using custom database path: {DB_FILE}")
+else:
+    # Local development
+    DB_FILE = 'koree_autoservice.db'
+    print("💻 Local development - using local database path")
+
+print(f"📊 Database file: {DB_FILE}")
 
 # Email Configuration - AWS environment variables
 MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
@@ -906,25 +920,47 @@ def test_database_connection():
         print("❌ SQLite connection failed!")
         return False
 
-if __name__ == "__main__":
-    print("=" * 50)
-    print("🚀 Starting Koree Autoservice Booking System (SQLite)")
-    print("=" * 50)
-    
-    # Test database connection
-    if test_database_connection():
-        # Initialize database
-        print("🔧 Initializing SQLite database...")
-        init_db()  # Creates the tables
-        print("✅ Database ready!")
-        print()
-        print("🚀 Starting Flask application...")
-        print("📊 Admin panel: http://localhost:5000/admin/bookings")
-        print("🌐 Website: http://localhost:5000")
-        print("🔧 API test: http://localhost:5000/api/available-times?date=2025-08-29")
-        print("=" * 50)
+def ensure_database_initialized():
+    """Ensure database is initialized on every app startup (AWS compatible)"""
+    try:
+        print("🔧 Ensuring database is initialized for AWS...")
         
-        # Start Flask app
-        app.run(debug=True, host="0.0.0.0", port=5000)
-    else:
-        print("❌ Cannot start - database connection failed!")
+        # Check if database file exists and is accessible
+        db_dir = os.path.dirname(DB_FILE)
+        if db_dir and not os.path.exists(db_dir):
+            print(f"📁 Creating database directory: {db_dir}")
+            os.makedirs(db_dir, exist_ok=True)
+        
+        # Test database connection
+        connection = get_db_connection()
+        if connection is None:
+            print("❌ Database connection failed - initializing...")
+            return init_db()
+        
+        cursor = connection.cursor()
+        
+        # Check if required tables exist
+        cursor.execute("""
+            SELECT name FROM sqlite_master WHERE type='table' AND name IN ('bookings', 'services')
+        """)
+        tables = cursor.fetchall()
+        
+        if len(tables) < 2:
+            print("❌ Required tables are missing - initializing database...")
+            return init_db()
+        else:
+            print("✅ Required tables exist")
+        
+        cursor.close()
+        connection.close()
+        return True
+    
+    except Exception as e:
+        print(f"❌ Database initialization error: {e}")
+        return False
+
+# Ensure database is initialized on startup
+ensure_database_initialized()
+
+# Test database connection on startup
+test_database_connection()

@@ -1,6 +1,15 @@
 from app import app
 import os
 
+# Import and run database initialization
+try:
+    from app import ensure_database_initialized
+    print("🌟 AWS Application startup - initializing database...")
+    ensure_database_initialized()
+    print("✅ AWS database initialization complete!")
+except Exception as e:
+    print(f"❌ AWS database initialization failed: {e}")
+
 application = app
 
 if __name__ == "__main__":
