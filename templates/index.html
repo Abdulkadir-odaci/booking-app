@@ -417,98 +417,68 @@ function resetTimeSelection() {
     timeSelect.disabled = true;
 }
 
-async function loadAvailableTimes(selectedDate) {
+function loadAvailableTimes(selectedDate) {
+    console.log('📅 Loading times for:', selectedDate);
+    
     const timeSelect = document.getElementById('time');
     const timeLoading = document.getElementById('time-loading');
     
-    console.log('🔍 Loading available times for date:', selectedDate);
-    
-    // Show loading
-    if (timeLoading) timeLoading.style.display = 'block';
-    timeSelect.innerHTML = '<option value="">Beschikbare tijden laden...</option>';
+    // Show loading state
+    if (timeLoading) {
+        timeLoading.style.display = 'block';
+    }
     timeSelect.disabled = true;
+    timeSelect.innerHTML = '<option value="">⏳ Tijden laden...</option>';
     
-    try {
-        const apiUrl = `/api/available-times?date=${selectedDate}`;
-        console.log('📡 Calling API:', apiUrl);
-        
-        const response = await fetch(apiUrl);
-        console.log('📊 Response status:', response.status);
-        
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log('📊 Available times data:', data);
-        
-        // Clear existing options
-        timeSelect.innerHTML = '';
-        
-        if (data.success) {
-            // Add default option
-            const defaultOption = document.createElement('option');
-            defaultOption.value = '';
-            defaultOption.textContent = 'Selecteer een tijd';
-            timeSelect.appendChild(defaultOption);
+    fetch(`/api/available-times?date=${selectedDate}`)
+        .then(response => {
+            console.log('📡 API Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('📊 API Data received:', data);
             
-            if (data.all_times && data.all_times.length > 0) {
-                // Add all times with proper styling
-                data.all_times.forEach(time => {
-                    const option = document.createElement('option');
-                    option.value = time.available ? time.value : '';
-                    
-                    if (time.available) {
-                        // Available time - bold green
-                        option.textContent = time.display;
-                        option.style.fontWeight = 'bold';
-                        option.style.color = '#28a745';
-                    } else {
-                        // Unavailable time - disabled with reason
-                        let reason = '';
-                        if (time.is_booked) {
-                            reason = ' (Bezet)';
-                        } else if (time.is_past) {
-                            reason = ' (Verlopen)';
-                        }
-                        
-                        option.textContent = `${time.display}${reason}`;
-                        option.disabled = true;
-                        option.style.color = '#dc3545';
-                        option.style.fontStyle = 'italic';
-                        option.style.textDecoration = 'line-through';
+            // Hide loading
+            if (timeLoading) {
+                timeLoading.style.display = 'none';
+            }
+            
+            timeSelect.innerHTML = '<option value="">Kies een tijd...</option>';
+            timeSelect.disabled = false;
+            
+            // Your excellent app.py returns data.all_times (not data.times)
+            if (data.success && data.all_times && data.all_times.length > 0) {
+                data.all_times.forEach(timeSlot => {
+                    // Only add available times
+                    if (timeSlot.available) {
+                        const option = document.createElement('option');
+                        option.value = timeSlot.value;
+                        option.textContent = timeSlot.display;
+                        timeSelect.appendChild(option);
                     }
-                    
-                    timeSelect.appendChild(option);
                 });
                 
-                console.log(`✅ Loaded ${data.available_count} available out of ${data.total_slots} time slots`);
+                console.log(`✅ Loaded ${data.available_count} available times`);
+                
+                if (data.available_count === 0) {
+                    timeSelect.innerHTML = '<option value="">Geen tijden beschikbaar op deze datum</option>';
+                }
             } else {
-                const noTimesOption = document.createElement('option');
-                noTimesOption.value = '';
-                noTimesOption.textContent = data.message || 'Geen tijden beschikbaar';
-                noTimesOption.disabled = true;
-                timeSelect.appendChild(noTimesOption);
+                timeSelect.innerHTML = '<option value="">Geen tijden beschikbaar</option>';
+                console.log('❌ No times available or API error');
             }
-        } else {
-            // API returned error
-            console.error('❌ API Error:', data);
-            const errorOption = document.createElement('option');
-            errorOption.value = '';
-            errorOption.textContent = data.message || data.error || 'Fout bij laden tijden';
-            errorOption.disabled = true;
-            timeSelect.appendChild(errorOption);
-        }
-        
-        timeSelect.disabled = false;
-        
-    } catch (error) {
-        console.error('❌ Network/Parse error:', error);
-        timeSelect.innerHTML = `<option value="" disabled>Netwerkfout: ${error.message}</option>`;
-        timeSelect.disabled = false;
-    } finally {
-        if (timeLoading) timeLoading.style.display = 'none';
-    }
+        })
+        .catch(error => {
+            console.error('❌ Error loading times:', error);
+            
+            // Hide loading
+            if (timeLoading) {
+                timeLoading.style.display = 'none';
+            }
+            
+            timeSelect.innerHTML = '<option value="">Fout bij laden tijden</option>';
+            timeSelect.disabled = false;
+        });
 }
 
 function setupBookingForm() {

@@ -915,18 +915,16 @@ if __name__ == "__main__":
     if test_database_connection():
         # Initialize database
         print("🔧 Initializing SQLite database...")
-        if init_db():
-            print("✅ Database ready!")
-            print()
-            print("🚀 Starting Flask application...")
-            print("📊 Admin panel: http://localhost:5000/admin/bookings")
-            print("🌐 Website: http://localhost:5000")
-            print("🔧 API test: http://localhost:5000/api/available-times?date=2025-08-29")
-            print("=" * 50)
-            
-            # Start Flask app
-            app.run(debug=True, host="0.0.0.0", port=5000)
-        else:
-            print("❌ Database initialization failed!")
+        init_db()  # Creates the tables
+        print("✅ Database ready!")
+        print()
+        print("🚀 Starting Flask application...")
+        print("📊 Admin panel: http://localhost:5000/admin/bookings")
+        print("🌐 Website: http://localhost:5000")
+        print("🔧 API test: http://localhost:5000/api/available-times?date=2025-08-29")
+        print("=" * 50)
+        
+        # Start Flask app
+        app.run(debug=True, host="0.0.0.0", port=5000)
     else:
         print("❌ Cannot start - database connection failed!")
