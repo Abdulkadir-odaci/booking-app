@@ -37,8 +37,22 @@ app = Flask(__name__)
 # Configuration - AWS will provide these via environment variables
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-# Database Configuration for SQLite - AWS path
-DB_FILE = os.environ.get('DB_FILE', '/var/app/current/koree_autoservice.db')
+# IMPROVE DATABASE CONFIGURATION:
+# Database Configuration for SQLite - AWS path with fallback
+if os.environ.get('AWS_EXECUTION_ENV'):
+    # Running on AWS
+    DB_FILE = '/var/app/current/koree_autoservice.db'
+    print("🌟 AWS Environment detected - using AWS database path")
+elif os.environ.get('DB_FILE'):
+    # Custom environment variable
+    DB_FILE = os.environ.get('DB_FILE')
+    print(f"🔧 Using custom database path: {DB_FILE}")
+else:
+    # Local development
+    DB_FILE = 'koree_autoservice.db'
+    print("💻 Local development - using local database path")
+
+print(f"📊 Database file: {DB_FILE}")
 
 # Email Configuration - AWS environment variables
 MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
@@ -1217,6 +1231,18 @@ if __name__ == "__main__":
             # Start Flask app
             app.run(debug=True, host="0.0.0.0", port=5000)
         else:
-            print("❌ Database initialization failed!")
-    else:
-        print("❌ Cannot start - database connection failed!")
+            print("✅ Required tables exist")
+        
+        cursor.close()
+        connection.close()
+        return True
+    
+    except Exception as e:
+        print(f"❌ Database initialization error: {e}")
+        return False
+
+# Ensure database is initialized on startup
+ensure_database_initialized()
+
+# Test database connection on startup
+test_database_connection()
