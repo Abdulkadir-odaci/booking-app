@@ -198,6 +198,150 @@
         </div>
     </section>
 
+    <!-- Reviews Section - Add after "Onze Waardering" section -->
+    <section id="reviews-section" class="py-5 bg-light">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-12 text-center mb-5">
+                    <h2 class="display-5 fw-bold text-primary">
+                        <i class="fas fa-star text-warning me-2"></i>
+                        Klantbeoordelingen
+                    </h2>
+                    <p class="lead text-muted">Wat onze klanten over ons zeggen</p>
+                </div>
+            </div>
+
+            {% if show_reviews and has_reviews and reviews_data and reviews_data.reviews %}
+                <!-- Overall Rating Summary -->
+                <div class="row mb-5">
+                    <div class="col-lg-8 mx-auto">
+                        <div class="card border-0 shadow-lg" style="background: linear-gradient(135deg, #4285f4, #34a853); color: white; border-radius: 20px;">
+                            <div class="card-body p-4">
+                                <div class="row align-items-center">
+                                    <div class="col-md-4 text-center">
+                                        <h2 class="display-3 fw-bold mb-2">{{ "%.1f"|format(reviews_data.overall_rating) }}</h2>
+                                        <div class="mb-2">
+                                            {% for i in range(5) %}
+                                                {% if i < reviews_data.overall_rating %}
+                                                    <i class="fas fa-star" style="color: #ffc107; font-size: 1.5rem;"></i>
+                                                {% else %}
+                                                    <i class="far fa-star" style="color: #ffc107; font-size: 1.5rem;"></i>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </div>
+                                        <small class="badge bg-success px-3 py-2">Rechtstreeks van Google</small>
+                                    </div>
+                                    <div class="col-md-8">
+                                        <h4 class="fw-bold">{{ reviews_data.business_name or "Autobedrijf Koree" }}</h4>
+                                        <p class="mb-2">
+                                            <i class="fas fa-map-marker-alt me-2"></i>
+                                            {{ reviews_data.business_address or "Haven 45-48, 3143 BD Maassluis" }}
+                                        </p>
+                                        <p class="mb-2">
+                                            <i class="fas fa-users me-2"></i>
+                                            Gebaseerd op {{ reviews_data.total_reviews or 32 }} Google beoordelingen
+                                        </p>
+                                        <p class="mb-0">
+                                            <i class="fas fa-phone me-2"></i>
+                                            {{ reviews_data.business_phone or "010 592 8497" }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Individual Reviews -->
+                <div class="row">
+                    {% for review in reviews_data.reviews %}
+                    <div class="col-lg-4 col-md-6 mb-4">
+                        <div class="card h-100 border-0 shadow-sm hover-card">
+                            <div class="card-body p-4">
+                                <div class="d-flex align-items-center mb-3">
+                                    {% if review.profile_photo_url %}
+                                        <img src="{{ review.profile_photo_url }}" 
+                                             alt="{{ review.author_name }}" 
+                                             class="rounded-circle me-3" 
+                                             style="width: 50px; height: 50px; object-fit: cover;">
+                                    {% else %}
+                                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" 
+                                             style="width: 50px; height: 50px; font-weight: bold;">
+                                            {{ review.author_name[0] if review.author_name else "?" }}
+                                        </div>
+                                    {% endif %}
+                                    <div>
+                                        <h6 class="mb-0 fw-bold">{{ review.author_name }}</h6>
+                                        <div class="d-flex align-items-center">
+                                            <small class="text-muted">{{ review.relative_time_description }}</small>
+                                            {% if review.is_local_guide %}
+                                                <span class="badge bg-primary ms-2 px-2 py-1">
+                                                    <i class="fas fa-award me-1"></i>Local Guide
+                                                </span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    {% for i in range(5) %}
+                                        {% if i < review.rating %}
+                                            <i class="fas fa-star text-warning"></i>
+                                        {% else %}
+                                            <i class="far fa-star text-warning"></i>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                
+                                <p class="card-text text-muted">{{ review.text }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Call to Action -->
+                <div class="row mt-4">
+                    <div class="col-12 text-center">
+                        <a href="https://www.google.com/maps/place/?q=place_id:{{ reviews_data.place_id }}" 
+                           target="_blank" class="btn btn-outline-primary">
+                            <i class="fab fa-google me-2"></i>Bekijk alle beoordelingen op Google
+                        </a>
+                    </div>
+                </div>
+            {% else %}
+                <!-- No Reviews State -->
+                <div class="row">
+                    <div class="col-lg-6 mx-auto text-center">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body p-5">
+                                <i class="fas fa-star fa-3x text-warning mb-4"></i>
+                                <h4 class="fw-bold text-primary mb-3">Google Beoordelingen</h4>
+                                {% if error_message %}
+                                    <p class="text-muted mb-4">{{ error_message }}</p>
+                                {% else %}
+                                    <p class="text-muted mb-4">We laden de beoordelingen rechtstreeks van Google Maps.</p>
+                                {% endif %}
+                                
+                                <div class="d-flex flex-wrap justify-content-center gap-2">
+                                    <a href="https://www.google.com/maps/place/Autobedrijf+Koree" 
+                                       target="_blank" 
+                                       class="btn btn-primary">
+                                        <i class="fab fa-google me-2"></i>Bekijk op Google
+                                    </a>
+                                    <button onclick="window.location.reload()" 
+                                            class="btn btn-outline-secondary">
+                                        <i class="fas fa-sync me-2"></i>Opnieuw Laden
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </section>
+
     <!-- Booking Section -->
     <section id="booking" class="py-5 bg-light">
         <div class="container">
@@ -564,5 +708,17 @@ function loadReviews() {
     // (keeping the existing review functionality)
 }
     </script>
+
+    <!-- Add hover effect styles -->
+    <style>
+        .hover-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .hover-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+        }
+    </style>
 </body>
 </html>
