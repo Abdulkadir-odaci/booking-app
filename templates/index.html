@@ -45,7 +45,7 @@
                         <a class="nav-link" href="#about">Over Ons</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#reviews">Reviews</a>
+                        <a class="nav-link" href="#reviews-section">Reviews</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#contact">Contact</a>
@@ -116,19 +116,7 @@
         </div>
     </section>
 
-    <!-- Services Section -->
-    <section id="services" class="services-preview py-5">
-        <div class="container">
-            <div class="text-center mb-5">
-                <h2 class="display-5 fw-bold">Onze Diensten</h2>
-                <p class="lead">Compleet autobedrijf voor al uw autowensen</p>
-            </div>
-            
-            <div class="row g-4" id="servicesContainer">
-                <!-- Services will be loaded here -->
-            </div>
-        </div>
-    </section>
+
 
     <!-- About Section -->
     <section id="about" class="py-5 bg-light">
@@ -166,40 +154,10 @@
         </div>
     </section>
 
-    <!-- Reviews Section with Slider -->
-    <section id="reviews" class="reviews-section">
-        <div class="container">
-            <h2 class="text-center mb-5" style="color: #2c3e50; font-weight: 700;">Wat Onze Klanten Zeggen</h2>
-            
-            <div class="reviews-container">
-                <div class="overall-rating">
-                    <h3>Onze Waardering</h3>
-                    <div class="rating-display" id="overallRating">4.6</div>
-                    <div class="stars-display" id="overallStars">★★★★★</div>
-                    <p id="totalReviews">Gebaseerd op beoordelingen</p>
-                </div>
-                
-                <div class="reviews-slider-container">
-                    <div class="reviews-slider" id="reviewsSlider">
-                        <!-- Reviews will be loaded here -->
-                    </div>
-                </div>
-                
-                <div class="slider-navigation">
-                    <button class="nav-button" id="prevBtn">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <div class="slider-dots" id="sliderDots"></div>
-                    <button class="nav-button" id="nextBtn">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </section>
 
-    <!-- Reviews Section - Add after "Onze Waardering" section -->
-    <section id="reviews-section" class="py-5 bg-light">
+
+    <!-- Improved Reviews Section - More Professional -->
+    <section id="reviews-section" class="py-5" style="background: linear-gradient(to bottom, #f8f9fa, #ffffff);">
         <div class="container">
             <div class="row">
                 <div class="col-lg-12 text-center mb-5">
@@ -207,19 +165,18 @@
                         <i class="fas fa-star text-warning me-2"></i>
                         Klantbeoordelingen
                     </h2>
-                    <p class="lead text-muted">Wat onze klanten over ons zeggen</p>
                 </div>
             </div>
 
             {% if show_reviews and has_reviews and reviews_data and reviews_data.reviews %}
-                <!-- Overall Rating Summary -->
+                <!-- Improved Rating Summary Card -->
                 <div class="row mb-5">
                     <div class="col-lg-8 mx-auto">
-                        <div class="card border-0 shadow-lg" style="background: linear-gradient(135deg, #4285f4, #34a853); color: white; border-radius: 20px;">
+                        <div class="card border-0 shadow-lg rounded-4" style="background: linear-gradient(135deg, #1e3c72, #2a5298); color: white;">
                             <div class="card-body p-4">
                                 <div class="row align-items-center">
                                     <div class="col-md-4 text-center">
-                                        <h2 class="display-3 fw-bold mb-2">{{ "%.1f"|format(reviews_data.overall_rating) }}</h2>
+                                        <h2 class="display-2 fw-bold mb-2">{{ "%.1f"|format(reviews_data.overall_rating) }}</h2>
                                         <div class="mb-2">
                                             {% for i in range(5) %}
                                                 {% if i < reviews_data.overall_rating %}
@@ -229,7 +186,12 @@
                                                 {% endif %}
                                             {% endfor %}
                                         </div>
-                                        <small class="badge bg-success px-3 py-2">Rechtstreeks van Google</small>
+                                        <div class="d-flex justify-content-center">
+                                            <span class="badge bg-light text-primary px-3 py-2 fw-bold rounded-pill">
+                                                <i class="fab fa-google me-1"></i>
+                                                Google Reviews
+                                            </span>
+                                        </div>
                                     </div>
                                     <div class="col-md-8">
                                         <h4 class="fw-bold">{{ reviews_data.business_name or "Autobedrijf Koree" }}</h4>
@@ -239,7 +201,7 @@
                                         </p>
                                         <p class="mb-2">
                                             <i class="fas fa-users me-2"></i>
-                                            Gebaseerd op {{ reviews_data.total_reviews or 32 }} Google beoordelingen
+                                            Gebaseerd op {{ reviews_data.total_reviews or 32 }} beoordelingen
                                         </p>
                                         <p class="mb-0">
                                             <i class="fas fa-phone me-2"></i>
@@ -252,30 +214,30 @@
                     </div>
                 </div>
 
-                <!-- Individual Reviews -->
+                <!-- Improved Individual Reviews -->
                 <div class="row">
                     {% for review in reviews_data.reviews %}
                     <div class="col-lg-4 col-md-6 mb-4">
-                        <div class="card h-100 border-0 shadow-sm hover-card">
+                        <div class="card h-100 border-0 shadow-sm review-card">
                             <div class="card-body p-4">
                                 <div class="d-flex align-items-center mb-3">
                                     {% if review.profile_photo_url %}
                                         <img src="{{ review.profile_photo_url }}" 
                                              alt="{{ review.author_name }}" 
-                                             class="rounded-circle me-3" 
-                                             style="width: 50px; height: 50px; object-fit: cover;">
+                                             class="rounded-circle me-3 border shadow-sm" 
+                                             style="width: 55px; height: 55px; object-fit: cover;">
                                     {% else %}
-                                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3" 
-                                             style="width: 50px; height: 50px; font-weight: bold;">
+                                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3 shadow-sm" 
+                                             style="width: 55px; height: 55px; font-weight: bold;">
                                             {{ review.author_name[0] if review.author_name else "?" }}
                                         </div>
                                     {% endif %}
                                     <div>
-                                        <h6 class="mb-0 fw-bold">{{ review.author_name }}</h6>
+                                        <h6 class="mb-1 fw-bold">{{ review.author_name or "Anonymous" }}</h6>
                                         <div class="d-flex align-items-center">
-                                            <small class="text-muted">{{ review.relative_time_description }}</small>
+                                            <small class="text-muted me-2">{{ review.relative_time_description }}</small>
                                             {% if review.is_local_guide %}
-                                                <span class="badge bg-primary ms-2 px-2 py-1">
+                                                <span class="badge bg-primary px-2 py-1 rounded-pill">
                                                     <i class="fas fa-award me-1"></i>Local Guide
                                                 </span>
                                             {% endif %}
@@ -300,39 +262,38 @@
                     {% endfor %}
                 </div>
 
-                <!-- Call to Action -->
-                <div class="row mt-4">
-                    <div class="col-12 text-center">
+                <!-- Improved Call to Action -->
+                <div class="row mt-5">
+                    <div class="col-lg-8 mx-auto text-center">
                         <a href="https://www.google.com/maps/place/?q=place_id:{{ reviews_data.place_id }}" 
-                           target="_blank" class="btn btn-outline-primary">
-                            <i class="fab fa-google me-2"></i>Bekijk alle beoordelingen op Google
+                           target="_blank" class="btn btn-outline-primary rounded-pill px-4 py-2 me-2">
+                            <i class="fab fa-google me-2"></i>Meer beoordelingen bekijken
+                        </a>
+                        <a href="#booking" class="btn btn-primary rounded-pill px-4 py-2">
+                            <i class="fas fa-calendar-check me-2"></i>Nu een afspraak maken
                         </a>
                     </div>
                 </div>
             {% else %}
-                <!-- No Reviews State -->
+                <!-- Improved No Reviews State -->
                 <div class="row">
                     <div class="col-lg-6 mx-auto text-center">
                         <div class="card border-0 shadow-sm">
                             <div class="card-body p-5">
-                                <i class="fas fa-star fa-3x text-warning mb-4"></i>
+                                <i class="fas fa-star fa-3x text-warning mb-4 opacity-50"></i>
                                 <h4 class="fw-bold text-primary mb-3">Google Beoordelingen</h4>
                                 {% if error_message %}
                                     <p class="text-muted mb-4">{{ error_message }}</p>
                                 {% else %}
-                                    <p class="text-muted mb-4">We laden de beoordelingen rechtstreeks van Google Maps.</p>
+                                    <p class="text-muted mb-4">Onze klantbeoordelingen worden geladen.</p>
                                 {% endif %}
                                 
                                 <div class="d-flex flex-wrap justify-content-center gap-2">
                                     <a href="https://www.google.com/maps/place/Autobedrijf+Koree" 
                                        target="_blank" 
-                                       class="btn btn-primary">
+                                       class="btn btn-primary rounded-pill px-4 py-2">
                                         <i class="fab fa-google me-2"></i>Bekijk op Google
                                     </a>
-                                    <button onclick="window.location.reload()" 
-                                            class="btn btn-outline-secondary">
-                                        <i class="fas fa-sync me-2"></i>Opnieuw Laden
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -443,8 +404,8 @@
                             </div>
                             <div class="col-6">
                                 <p class="mb-1 text-warning">8:00 - 17:00</p>
-                                <p class="mb-1 text-warning">9:00 - 14:00</p>
-                                <p class="mb-1 text-muted">Gesloten</p>
+                                <p class="mb-1 text-warning">9:00 - 17:00</p>
+                                <p class="mb-1 text-warning">9:00 - 15:00</p>
                             </div>
                         </div>
                     </div>
@@ -500,38 +461,47 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function loadServices() {
+    console.log('🔧 Loading services...');
     fetch('/api/services')
-        .then(response => response.json())
+        .then(response => {
+            console.log('📡 Services API Response status:', response.status);
+            return response.json();
+        })
         .then(data => {
+            console.log('📊 Services data received:', data);
             const serviceSelect = document.getElementById('service');
-            const servicesContainer = document.getElementById('servicesContainer');
             
-            if (data.services) {
+            if (data.services && serviceSelect) {
+                // Clear existing options except the first one
+                serviceSelect.innerHTML = '<option value="">Kies een service</option>';
+                
                 data.services.forEach(service => {
                     const option = document.createElement('option');
                     option.value = service.name;
                     option.textContent = service.name;
                     serviceSelect.appendChild(option);
-                    
-                    if (servicesContainer) {
-                        const serviceCard = `
-                            <div class="col-md-6 col-lg-4">
-                                <div class="service-card">
-                                    <div class="service-icon">
-                                        <i class="fas fa-wrench"></i>
-                                    </div>
-                                    <h4>${service.name}</h4>
-                                    <p>${service.description}</p>
-                                    <small class="text-muted">Geschatte duur: ${service.duration} minuten</small>
-                                </div>
-                            </div>
-                        `;
-                        servicesContainer.innerHTML += serviceCard;
-                    }
                 });
+                
+                console.log(`✅ Loaded ${data.services.length} services`);
+            } else {
+                console.log('⚠️ No services data found or service select not found');
             }
         })
-        .catch(error => console.error('Error loading services:', error));
+        .catch(error => {
+            console.error('❌ Error loading services:', error);
+            // Add fallback services if API fails
+            const serviceSelect = document.getElementById('service');
+            if (serviceSelect) {
+                serviceSelect.innerHTML = `
+                    <option value="">Kies een service</option>
+                    <option value="APK Keuring">APK Keuring</option>
+                    <option value="Onderhoud">Onderhoud</option>
+                    <option value="Reparatie">Reparatie</option>
+                    <option value="Banden Service">Banden Service</option>
+                    <option value="Airco Service">Airco Service</option>
+                `;
+            }
+        });
 }
 
 function setupDateInput() {
@@ -541,6 +511,12 @@ function setupDateInput() {
         const today = new Date();
         const todayString = today.toISOString().split('T')[0];
         dateInput.min = todayString;
+        
+        // Set maximum date to 3 months from now
+        const maxDate = new Date();
+        maxDate.setMonth(maxDate.getMonth() + 3);
+        const maxDateString = maxDate.toISOString().split('T')[0];
+        dateInput.max = maxDateString;
         
         dateInput.addEventListener('change', function() {
             const selectedDate = this.value;
@@ -557,8 +533,10 @@ function setupDateInput() {
 
 function resetTimeSelection() {
     const timeSelect = document.getElementById('time');
-    timeSelect.innerHTML = '<option value="">Selecteer eerst een datum</option>';
-    timeSelect.disabled = true;
+    if (timeSelect) {
+        timeSelect.innerHTML = '<option value="">Selecteer eerst een datum</option>';
+        timeSelect.disabled = true;
+    }
 }
 
 function loadAvailableTimes(selectedDate) {
@@ -566,6 +544,11 @@ function loadAvailableTimes(selectedDate) {
     
     const timeSelect = document.getElementById('time');
     const timeLoading = document.getElementById('time-loading');
+    
+    if (!timeSelect) {
+        console.error('❌ Time select element not found');
+        return;
+    }
     
     // Show loading state
     if (timeLoading) {
@@ -577,6 +560,9 @@ function loadAvailableTimes(selectedDate) {
     fetch(`/api/available-times?date=${selectedDate}`)
         .then(response => {
             console.log('📡 API Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
             return response.json();
         })
         .then(data => {
@@ -590,26 +576,22 @@ function loadAvailableTimes(selectedDate) {
             timeSelect.innerHTML = '<option value="">Kies een tijd...</option>';
             timeSelect.disabled = false;
             
-            // Your excellent app.py returns data.all_times (not data.times)
-            if (data.success && data.all_times && data.all_times.length > 0) {
-                data.all_times.forEach(timeSlot => {
-                    // Only add available times
-                    if (timeSlot.available) {
-                        const option = document.createElement('option');
-                        option.value = timeSlot.value;
-                        option.textContent = timeSlot.display;
-                        timeSelect.appendChild(option);
-                    }
+            if (data.success && data.available_times && data.available_times.length > 0) {
+                // Handle the simplified time format
+                data.available_times.forEach(timeString => {
+                    const option = document.createElement('option');
+                    option.value = timeString;
+                    option.textContent = timeString;
+                    timeSelect.appendChild(option);
                 });
                 
-                console.log(`✅ Loaded ${data.available_count} available times`);
-                
-                if (data.available_count === 0) {
-                    timeSelect.innerHTML = '<option value="">Geen tijden beschikbaar op deze datum</option>';
-                }
+                console.log(`✅ Loaded ${data.available_times.length} available times`);
+            } else if (data.success && data.available_times && data.available_times.length === 0) {
+                timeSelect.innerHTML = '<option value="">Geen tijden beschikbaar op deze datum</option>';
+                console.log('⚠️ No available times for this date');
             } else {
-                timeSelect.innerHTML = '<option value="">Geen tijden beschikbaar</option>';
-                console.log('❌ No times available or API error');
+                timeSelect.innerHTML = '<option value="">Fout bij laden tijden</option>';
+                console.log('❌ API error:', data.error || 'Unknown error');
             }
         })
         .catch(error => {
@@ -620,8 +602,19 @@ function loadAvailableTimes(selectedDate) {
                 timeLoading.style.display = 'none';
             }
             
-            timeSelect.innerHTML = '<option value="">Fout bij laden tijden</option>';
+            // Provide fallback times for testing
+            timeSelect.innerHTML = `
+                <option value="">Kies een tijd...</option>
+                <option value="09:00">09:00</option>
+                <option value="10:00">10:00</option>
+                <option value="11:00">11:00</option>
+                <option value="13:00">13:00</option>
+                <option value="14:00">14:00</option>
+                <option value="15:00">15:00</option>
+                <option value="16:00">16:00</option>
+            `;
             timeSelect.disabled = false;
+            console.log('⚠️ Using fallback times due to API error');
         });
 }
 
@@ -633,6 +626,19 @@ function setupBookingForm() {
             
             // Validate form before submission
             const timeSelect = document.getElementById('time');
+            const serviceSelect = document.getElementById('service');
+            const dateInput = document.getElementById('date');
+            
+            if (!dateInput.value) {
+                alert('❌ Selecteer een datum');
+                return;
+            }
+            
+            if (!serviceSelect.value) {
+                alert('❌ Selecteer een service');
+                return;
+            }
+            
             if (!timeSelect.value) {
                 alert('❌ Selecteer een beschikbare tijd');
                 return;
@@ -656,6 +662,8 @@ function setupBookingForm() {
                         alert(`✅ ${data.message}`);
                         this.reset();
                         resetTimeSelection();
+                        // Reload services
+                        loadServices();
                     } else {
                         alert(`❌ ${data.error || 'Er is een fout opgetreden'}`);
                     }
@@ -674,8 +682,8 @@ function setupBookingForm() {
 }
 
 function loadReviews() {
-    // Your existing review loading code here
-    // (keeping the existing review functionality)
+    // Reviews are already loaded via template
+    console.log('📝 Reviews loaded via template');
 }
     </script>
 
@@ -688,6 +696,24 @@ function loadReviews() {
         .hover-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
+        }
+        
+        .review-card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-radius: 12px;
+        }
+        
+        .review-card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1) !important;
+        }
+        
+        .rounded-4 {
+            border-radius: 1rem !important;
+        }
+        
+        .rounded-pill {
+            border-radius: 50rem !important;
         }
     </style>
 </body>

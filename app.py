@@ -794,25 +794,24 @@ def get_available_times():
         cursor.close()
         connection.close()
         
-        # Generate all possible time slots
+        # Generate all possible time slots (now returns simple strings)
         all_time_slots = generate_time_slots()
         
         # Get current time for today's comparison
         now = datetime.now()
         is_today = booking_date == now.date()
         
-        # Create detailed time information
+        # Filter available times
         available_times = []
-        all_times_with_status = []
         
         for time_slot in all_time_slots:
-            is_booked = time_slot['value'] in booked_times
+            is_booked = time_slot in booked_times
             
             # Check if time has passed for today
             is_past_time = False
             if is_today:
                 try:
-                    slot_time = datetime.strptime(time_slot['value'], '%H:%M').time()
+                    slot_time = datetime.strptime(time_slot, '%H:%M').time()
                     slot_datetime = datetime.combine(booking_date, slot_time)
                     is_past_time = slot_datetime <= now
                 except:
@@ -820,29 +819,9 @@ def get_available_times():
             
             is_available = not is_booked and not is_past_time
             
-            status = "available"
-            if is_booked:
-                status = "booked"
-            elif is_past_time:
-                status = "past"
-            
-            time_info = {
-                "value": time_slot['value'],
-                "display": time_slot['display'],
-                "available": is_available,
-                "status": status,
-                "is_booked": is_booked,
-                "is_past": is_past_time
-            }
-            
-            all_times_with_status.append(time_info)
-            
             # Only add to available_times if actually available
             if is_available:
-                available_times.append({
-                    "value": time_slot['value'],
-                    "display": time_slot['display']
-                })
+                available_times.append(time_slot)
         
         print(f"✅ Total slots: {len(all_time_slots)}, Available: {len(available_times)}, Booked: {len(booked_times)}")
         
@@ -850,7 +829,6 @@ def get_available_times():
             "success": True,
             "date": date,
             "available_times": available_times,
-            "all_times": all_times_with_status,
             "booked_times": booked_times,
             "total_slots": len(all_time_slots),
             "available_count": len(available_times),
@@ -899,6 +877,17 @@ def admin_bookings():
         print(f"❌ Admin bookings error: {e}")
         return jsonify({"error": "Failed to fetch bookings"}), 500
 
+# Business hours configuration (update in your app.py)
+BUSINESS_HOURS = {
+    'monday': {'start': '08:00', 'end': '17:00'},
+    'tuesday': {'start': '08:00', 'end': '17:00'},
+    'wednesday': {'start': '08:00', 'end': '17:00'},
+    'thursday': {'start': '08:00', 'end': '17:00'},
+    'friday': {'start': '08:00', 'end': '17:00'},
+    'saturday': {'start': '09:00', 'end': '17:00'},  # Updated to 17:00
+    'sunday': {'start': '09:00', 'end': '15:00'},    # Updated to 15:00
+}
+
 def is_valid_time_slot(time_str):
     """Validate if the time slot is within business hours and 30-minute intervals"""
     try:
@@ -935,12 +924,9 @@ def generate_time_slots():
     
     while current_hour < end_hour:
         time_str = f"{current_hour:02d}:{current_minute:02d}"
-        display_str = f"{current_hour:02d}:{current_minute:02d}"
         
-        time_slots.append({
-            "value": time_str,
-            "display": display_str
-        })
+        # Return simple strings instead of objects
+        time_slots.append(time_str)
         
         # Add 30 minutes
         current_minute += 30
@@ -948,7 +934,7 @@ def generate_time_slots():
             current_minute = 0
             current_hour += 1
     
-    print(f"✅ Generated {len(time_slots)} time slots: {[slot['value'] for slot in time_slots]}")
+    print(f"✅ Generated {len(time_slots)} time slots: {time_slots}")
     return time_slots
 
 def test_database_connection():
@@ -1231,18 +1217,6 @@ if __name__ == "__main__":
             # Start Flask app
             app.run(debug=True, host="0.0.0.0", port=5000)
         else:
-            print("✅ Required tables exist")
-        
-        cursor.close()
-        connection.close()
-        return True
-    
-    except Exception as e:
-        print(f"❌ Database initialization error: {e}")
-        return False
-
-# Ensure database is initialized on startup
-ensure_database_initialized()
-
-# Test database connection on startup
-test_database_connection()
+            print("❌ Database initialization failed!")
+    else:
+        print("❌ Database connection test failed!")
