@@ -156,6 +156,95 @@
 
 
 
+    <!-- Services Section -->
+    <section id="services" class="py-5">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="display-5 fw-bold text-primary">
+                    <i class="fas fa-tools me-2"></i>
+                    Onze Diensten
+                </h2>
+                <p class="lead text-muted">
+                    Professionele autoservice voor al uw behoeften
+                </p>
+            </div>
+            
+            <div class="row g-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-clipboard-check fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title fw-bold">APK Keuring</h5>
+                            <p class="card-text text-muted">
+                                Officiële APK keuring door gecertificeerde monteurs
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-wrench fa-3x text-success mb-3"></i>
+                            <h5 class="card-title fw-bold">Onderhoud</h5>
+                            <p class="card-text text-muted">
+                                Groot en klein onderhoud voor alle merken
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-cogs fa-3x text-warning mb-3"></i>
+                            <h5 class="card-title fw-bold">Reparaties</h5>
+                            <p class="card-text text-muted">
+                                Alle soorten autoreparaties vakkundig uitgevoerd
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-car-battery fa-3x text-info mb-3"></i>
+                            <h5 class="card-title fw-bold">Diagnose</h5>
+                            <p class="card-text text-muted">
+                                Computerdiagnose voor snelle probleemidentificatie
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-tire fa-3x text-danger mb-3"></i>
+                            <h5 class="card-title fw-bold">Banden Service</h5>
+                            <p class="card-text text-muted">
+                                Bandenwissel, balanceren en uitlijning
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body text-center p-4">
+                            <i class="fas fa-snowflake fa-3x text-primary mb-3"></i>
+                            <h5 class="card-title fw-bold">Airco Service</h5>
+                            <p class="card-text text-muted">
+                                Airco onderhoud en reparatie
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <!-- Improved Reviews Section - More Professional -->
     <section id="reviews-section" class="py-5" style="background: linear-gradient(to bottom, #f8f9fa, #ffffff);">
         <div class="container">
@@ -260,19 +349,6 @@
                         </div>
                     </div>
                     {% endfor %}
-                </div>
-
-                <!-- Improved Call to Action -->
-                <div class="row mt-5">
-                    <div class="col-lg-8 mx-auto text-center">
-                        <a href="https://www.google.com/maps/place/?q=place_id:{{ reviews_data.place_id }}" 
-                           target="_blank" class="btn btn-outline-primary rounded-pill px-4 py-2 me-2">
-                            <i class="fab fa-google me-2"></i>Meer beoordelingen bekijken
-                        </a>
-                        <a href="#booking" class="btn btn-primary rounded-pill px-4 py-2">
-                            <i class="fas fa-calendar-check me-2"></i>Nu een afspraak maken
-                        </a>
-                    </div>
                 </div>
             {% else %}
                 <!-- Improved No Reviews State -->
@@ -457,6 +533,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup booking form
     setupBookingForm();
+    
+    // Setup smooth scrolling
+    setupSmoothScrolling();
 });
 
 function loadServices() {
@@ -721,6 +800,47 @@ function setupBookingForm() {
         }
     });
 }
+
+// Add this to your existing JavaScript - don't replace anything else
+function setupSmoothScrolling() {
+    console.log('🔗 Setting up smooth scrolling...');
+    
+    // Get all anchor links that start with #
+    const anchorLinks = document.querySelectorAll('a[href^="#"]');
+    
+    anchorLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const targetId = this.getAttribute('href').substring(1);
+            console.log('🎯 Scrolling to:', targetId);
+            
+            let targetElement = document.getElementById(targetId);
+            
+            if (targetElement) {
+                // Calculate offset for fixed navbar
+                const navbarHeight = document.querySelector('.navbar').offsetHeight || 80;
+                const elementPosition = targetElement.offsetTop;
+                const offsetPosition = elementPosition - navbarHeight - 20;
+                
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth'
+                });
+                
+                console.log('✅ Scrolled to:', targetId);
+            } else {
+                console.error('❌ Target element not found:', targetId);
+            }
+        });
+    });
+}
+
+// Call the function when DOM loads
+document.addEventListener('DOMContentLoaded', function() {
+    setupSmoothScrolling();
+    // ... your other existing functions
+});
     </script>
 
     <!-- Add hover effect styles -->

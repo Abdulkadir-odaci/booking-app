@@ -752,6 +752,33 @@ def admin_bookings():
         print(f"❌ Admin bookings error: {e}")
         return f"Error: {str(e)}", 500
 
+@app.route('/admin/download-db')
+def download_database():
+    """Download database file for admin"""
+    try:
+        from flask import send_file
+        import os
+        
+        if os.path.exists(DB_FILE):
+            # Create a timestamped filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            download_name = f'koree_database_{timestamp}.db'
+            
+            print(f"📥 Downloading database: {DB_FILE} as {download_name}")
+            
+            return send_file(
+                DB_FILE,
+                as_attachment=True,
+                download_name=download_name,
+                mimetype='application/x-sqlite3'
+            )
+        else:
+            return "Database file not found", 404
+            
+    except Exception as e:
+        print(f"❌ Download error: {e}")
+        return f"Download error: {str(e)}", 500
+
 @app.route('/health')
 def health_check():
     """Health check for AWS load balancer"""
