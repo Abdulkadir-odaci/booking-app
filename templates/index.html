@@ -519,6 +519,30 @@
         </div>
     </footer>
 
+    <!-- Admin Bar -->
+    {% if is_admin %}
+    <div class="bg-success text-white py-2">
+        <div class="container">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <i class="fas fa-user-shield me-2"></i>
+                    <strong>Admin Mode Active</strong>
+                </div>
+                <div>
+                    <a href="/admin/dashboard" class="btn btn-sm btn-light me-2">
+                        <i class="fas fa-tachometer-alt me-1"></i>
+                        Dashboard
+                    </a>
+                    <a href="/admin/logout" class="btn btn-sm btn-outline-light">
+                        <i class="fas fa-sign-out-alt me-1"></i>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -817,60 +841,4 @@ function setupSmoothScrolling() {
             
             let targetElement = document.getElementById(targetId);
             
-            if (targetElement) {
-                // Calculate offset for fixed navbar
-                const navbarHeight = document.querySelector('.navbar').offsetHeight || 80;
-                const elementPosition = targetElement.offsetTop;
-                const offsetPosition = elementPosition - navbarHeight - 20;
-                
-                window.scrollTo({
-                    top: offsetPosition,
-                    behavior: 'smooth'
-                });
-                
-                console.log('✅ Scrolled to:', targetId);
-            } else {
-                console.error('❌ Target element not found:', targetId);
-            }
-        });
-    });
-}
-
-// Call the function when DOM loads
-document.addEventListener('DOMContentLoaded', function() {
-    setupSmoothScrolling();
-    // ... your other existing functions
-});
-    </script>
-
-    <!-- Add hover effect styles -->
-    <style>
-        .hover-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-        
-        .hover-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important;
-        }
-        
-        .review-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            border-radius: 12px;
-        }
-        
-        .review-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1) !important;
-        }
-        
-        .rounded-4 {
-            border-radius: 1rem !important;
-        }
-        
-        .rounded-pill {
-            border-radius: 50rem !important;
-        }
-    </style>
-</body>
-</html>
+            if

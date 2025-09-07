@@ -7,6 +7,8 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime, date, timedelta
 from dotenv import load_dotenv
 import re
+from functools import wraps
+from flask import session
 
 # Load environment variables
 load_dotenv()
@@ -337,65 +339,29 @@ def get_google_reviews():
         print(f"❌ Error loading manual reviews: {e}")
         return {'success': False, 'error': f'Error: {str(e)}'}
 
-# Routes
-@app.route("/")
-def home():
-    """Home page with booking form AND reviews integrated"""
-    try:
-        print("🏠 Loading home page with integrated reviews...")
+# Authentication decorator
+def require_admin_auth(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            flash('Please log in to access admin area', 'error')
+            return redirect(url_for('admin_login'))
         
-        # Get reviews data for the home page
-        reviews_response = get_google_reviews()
+        # Check session timeout (1 hour default)
+        import time
+        session_timeout = 3600  # 1 hour
+        last_activity = session.get('last_activity')
         
-        if reviews_response.get('success'):
-            reviews_data = reviews_response.get('data', {})
-            print(f"✅ Loading home page with {len(reviews_data.get('reviews', []))} reviews")
-            
-            # Ensure all data is JSON serializable
-            safe_reviews_data = {
-                'business_name': str(reviews_data.get('business_name', 'Autobedrijf Koree')),
-                'business_address': str(reviews_data.get('business_address', 'Haven 45-48, 3143 BD Maassluis')),
-                'business_phone': str(reviews_data.get('business_phone', '010 592 8497')),
-                'overall_rating': float(reviews_data.get('overall_rating', 4.6)),
-                'total_reviews': int(reviews_data.get('total_reviews', 32)),
-                'place_id': str(reviews_data.get('place_id', 'ChIJIUb6ApRMxEcRDLLwZYBbzz0')),
-                'reviews': []
-            }
-            
-            # Process reviews to ensure JSON serialization
-            for review in reviews_data.get('reviews', []):
-                safe_review = {
-                    'author_name': str(review.get('author_name', 'Anonymous')),
-                    'rating': int(review.get('rating', 5)),
-                    'text': str(review.get('text', '')),
-                    'relative_time_description': str(review.get('relative_time_description', '')),
-                    'date': str(review.get('date', '')),
-                    'is_local_guide': bool(review.get('is_local_guide', False)),
-                    'profile_photo_url': str(review.get('profile_photo_url', '')) if review.get('profile_photo_url') else ''
-                }
-                safe_reviews_data['reviews'].append(safe_review)
-            
-            return render_template('index.html', 
-                                 reviews_data=safe_reviews_data, 
-                                 has_reviews=True,
-                                 show_reviews=True)
-        else:
-            print(f"⚠️ Loading home page without reviews: {reviews_response.get('error')}")
-            return render_template('index.html', 
-                                 reviews_data={}, 
-                                 has_reviews=False,
-                                 show_reviews=True,
-                                 error_message=str(reviews_response.get('error', 'Reviews temporarily unavailable')))
-    except Exception as e:
-        print(f"❌ Error loading home page: {e}")
-        import traceback
-        traceback.print_exc()
-        return render_template('index.html', 
-                             reviews_data={}, 
-                             has_reviews=False,
-                             show_reviews=True,
-                             error_message=f'Error loading reviews: {str(e)}')
+        if last_activity and (time.time() - last_activity) > session_timeout:
+            session.clear()
+            flash('Session expired. Please log in again.', 'warning')
+            return redirect(url_for('admin_login'))
+        
+        session['last_activity'] = time.time()
+        return f(*args, **kwargs)
+    return decorated_function
 
+# Routes
 @app.route("/api/services", methods=["GET"])
 def get_services():
     """Get all available services (without prices)"""
@@ -655,7 +621,7 @@ def book_appointment():
                             {f'<p><strong>Bericht:</strong> {message}</p>' if message else ''}
                         </div>
                         
-                        <p>Wij zien u graag op de afgesproken tijd. Heeft u vragen? Bel ons op 010 592 8497.</p>
+                        <p>Wij zien u graag op de afgesproken tijd. Heeft u vragen? Bel ons op +31 6 23967989.</p>
                         
                         <p>Met vriendelijke groet,<br>
                         Team Autobedrijf Koree</p>
@@ -727,13 +693,134 @@ def book_appointment():
         traceback.print_exc()
         return jsonify({"error": "Er is een fout opgetreden bij het boeken"}), 500
 
+@app.route('/admin')
+def admin_redirect():
+    """Redirect /admin to login or dashboard"""
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_login'))
+
+@app.route('/admin/login')
+def admin_login():
+    """Admin login page"""
+    if session.get('admin_logged_in'):
+        return redirect(url_for('admin_dashboard'))
+    return render_template('admin_login.html')
+
+@app.route('/admin/authenticate', methods=['POST'])
+def admin_authenticate():
+    """Handle admin login"""
+    try:
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        # Get admin credentials from environment
+        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+        admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+        
+        if username == admin_username and password == admin_password:
+            # Successful login
+            import time
+            session['admin_logged_in'] = True
+            session['admin_username'] = username
+            session['admin_login_time'] = time.time()
+            session['last_activity'] = time.time()
+            session.permanent = True
+            
+            print(f"✅ Successful admin login: {username}")
+            flash('Welcome to admin dashboard!', 'success')
+            return redirect(url_for('admin_dashboard'))
+        else:
+            print(f"❌ Failed login attempt for username: {username}")
+            flash('Invalid username or password', 'error')
+            return redirect(url_for('admin_login'))
+            
+    except Exception as e:
+        print(f"❌ Authentication error: {e}")
+        flash('Login error occurred', 'error')
+        return redirect(url_for('admin_login'))
+
+@app.route('/admin/logout')
+def admin_logout():
+    """Admin logout"""
+    session.clear()
+    print(f"👋 Admin logout")
+    flash('Successfully logged out', 'info')
+    return redirect(url_for('index'))
+
+@app.route('/admin/dashboard')
+@require_admin_auth
+def admin_dashboard():
+    """Admin dashboard"""
+    try:
+        # Get booking statistics
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_login'))
+        
+        cursor = connection.cursor()
+        
+        # Total bookings
+        cursor.execute("SELECT COUNT(*) FROM bookings")
+        total_bookings = cursor.fetchone()[0]
+        
+        # Recent bookings (last 7 days)
+        cursor.execute("""
+            SELECT COUNT(*) FROM bookings 
+            WHERE date >= date('now', '-7 days')
+        """)
+        recent_bookings = cursor.fetchone()[0]
+        
+        # Upcoming bookings
+        cursor.execute("""
+            SELECT COUNT(*) FROM bookings 
+            WHERE date >= date('now') AND status = 'confirmed'
+        """)
+        upcoming_bookings = cursor.fetchone()[0]
+        
+        # Recent bookings details
+        cursor.execute("""
+            SELECT id, name, email, phone, service, date, time, status, created_at 
+            FROM bookings 
+            ORDER BY created_at DESC 
+            LIMIT 8
+        """)
+        recent_bookings_details = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+        
+        stats = {
+            'total_bookings': total_bookings,
+            'recent_bookings': recent_bookings,
+            'upcoming_bookings': upcoming_bookings,
+            'recent_bookings_details': recent_bookings_details
+        }
+        
+        admin_info = {
+            'username': session.get('admin_username', 'admin'),
+            'full_name': 'Administrator'
+        }
+        
+        return render_template('admin_dashboard.html', 
+                             stats=stats, 
+                             admin_info=admin_info)
+        
+    except Exception as e:
+        print(f"❌ Dashboard error: {e}")
+        flash('Dashboard error occurred', 'error')
+        return redirect(url_for('admin_login'))
+
 @app.route('/admin/bookings')
+@require_admin_auth
 def admin_bookings():
-    """Admin panel to view all bookings"""
+    """View all bookings"""
     try:
         connection = get_db_connection()
         if connection is None:
-            return "Database connection failed", 500
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_dashboard'))
         
         cursor = connection.cursor()
         cursor.execute("""
@@ -750,21 +837,22 @@ def admin_bookings():
         
     except Exception as e:
         print(f"❌ Admin bookings error: {e}")
-        return f"Error: {str(e)}", 500
+        flash('Error loading bookings', 'error')
+        return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/download-db')
+@require_admin_auth
 def download_database():
-    """Download database file for admin"""
+    """Download database file"""
     try:
         from flask import send_file
         import os
         
         if os.path.exists(DB_FILE):
-            # Create a timestamped filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             download_name = f'koree_database_{timestamp}.db'
             
-            print(f"📥 Downloading database: {DB_FILE} as {download_name}")
+            print(f"📥 Database download by admin")
             
             return send_file(
                 DB_FILE,
@@ -773,84 +861,161 @@ def download_database():
                 mimetype='application/x-sqlite3'
             )
         else:
-            return "Database file not found", 404
+            flash('Database file not found', 'error')
+            return redirect(url_for('admin_dashboard'))
             
     except Exception as e:
         print(f"❌ Download error: {e}")
-        return f"Download error: {str(e)}", 500
+        flash('Download error occurred', 'error')
+        return redirect(url_for('admin_dashboard'))
 
-@app.route('/health')
-def health_check():
-    """Health check for AWS load balancer"""
+@app.route('/admin/export-csv')
+@require_admin_auth
+def export_bookings_csv():
+    """Export bookings as CSV"""
     try:
+        import csv
+        from io import StringIO
+        from flask import Response
+        
         connection = get_db_connection()
-        if connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT COUNT(*) FROM services")
-            service_count = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM bookings")
-            booking_count = cursor.fetchone()[0]
-            cursor.close()
-            connection.close()
-            
-            return jsonify({
-                'status': 'healthy',
-                'database': 'connected',
-                'services': service_count,
-                'bookings': booking_count,
-                'db_file': DB_FILE,
-                'aws_env': bool(os.environ.get('AWS_EXECUTION_ENV'))
-            })
-        else:
-            return jsonify({'status': 'unhealthy', 'error': 'No database connection'}), 500
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT id, name, email, phone, service, date, time, message, status, created_at 
+            FROM bookings 
+            ORDER BY created_at DESC
+        """)
+        
+        bookings = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        
+        # Create CSV
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write headers
+        writer.writerow(['ID', 'Name', 'Email', 'Phone', 'Service', 'Date', 'Time', 'Message', 'Status', 'Created At'])
+        
+        # Write data
+        for booking in bookings:
+            writer.writerow(booking)
+        
+        # Create response
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f'koree_bookings_{timestamp}.csv'
+        
+        response = Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={"Content-Disposition": f"attachment;filename={filename}"}
+        )
+        
+        print(f"📊 CSV export by admin")
+        return response
+        
     except Exception as e:
-        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+        print(f"❌ CSV export error: {e}")
+        flash('Export error occurred', 'error')
+        return redirect(url_for('admin_dashboard'))
 
 @app.route('/debug/database')
 def debug_database():
-    """Debug database and file system"""
+    """Debug database information"""
     try:
-        app_dir = os.path.dirname(__file__) or '.'
+        connection = get_db_connection()
+        if connection is None:
+            return "Database connection failed", 500
         
-        info = {
-            'database_path': DB_FILE,
-            'database_exists': os.path.exists(DB_FILE),
-            'is_aws': IS_AWS,
-            'app_directory': app_dir,
-            'all_files': os.listdir(app_dir),
-            'database_files': [f for f in os.listdir(app_dir) if f.endswith('.db')],
-            'database_size': 0,
-            'tables': [],
-            'services_count': 0,
-            'bookings_count': 0
+        cursor = connection.cursor()
+        
+        # Get database info
+        debug_info = {
+            'database_file': DB_FILE,
+            'file_exists': os.path.exists(DB_FILE),
+            'file_size': os.path.getsize(DB_FILE) if os.path.exists(DB_FILE) else 0,
+            'tables': {}
         }
         
-        # Check database file
-        if os.path.exists(DB_FILE):
-            info['database_size'] = os.path.getsize(DB_FILE)
-            
-            connection = get_db_connection()
-            if connection:
-                cursor = connection.cursor()
-                
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                info['tables'] = [row[0] for row in cursor.fetchall()]
-                
-                if 'services' in info['tables']:
-                    cursor.execute("SELECT COUNT(*) FROM services")
-                    info['services_count'] = cursor.fetchone()[0]
-                
-                if 'bookings' in info['tables']:
-                    cursor.execute("SELECT COUNT(*) FROM bookings")
-                    info['bookings_count'] = cursor.fetchone()[0]
-                
-                cursor.close()
-                connection.close()
+        # Get table info
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        tables = cursor.fetchall()
         
-        return jsonify(info)
+        for table in tables:
+            table_name = table[0]
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
+            count = cursor.fetchone()[0]
+            debug_info['tables'][table_name] = count
+        
+        # Get recent bookings
+        cursor.execute("""
+            SELECT id, name, service, date, time, status, created_at 
+            FROM bookings 
+            ORDER BY created_at DESC 
+            LIMIT 10
+        """)
+        recent_bookings = cursor.fetchall()
+        
+        cursor.close()
+        connection.close()
+        
+        # Format output
+        output = f"""
+        <h1>🔧 Database Debug Information</h1>
+        <h2>📁 File Information</h2>
+        <p><strong>Database File:</strong> {debug_info['database_file']}</p>
+        <p><strong>File Exists:</strong> {debug_info['file_exists']}</p>
+        <p><strong>File Size:</strong> {debug_info['file_size']} bytes</p>
+        
+        <h2>📊 Tables</h2>
+        <ul>
+        """
+        
+        for table_name, count in debug_info['tables'].items():
+            output += f"<li><strong>{table_name}:</strong> {count} records</li>"
+        
+        output += "</ul><h2>📋 Recent Bookings</h2><table border='1'>"
+        output += "<tr><th>ID</th><th>Name</th><th>Service</th><th>Date</th><th>Time</th><th>Status</th><th>Created</th></tr>"
+        
+        for booking in recent_bookings:
+            output += f"<tr><td>{booking[0]}</td><td>{booking[1]}</td><td>{booking[2]}</td><td>{booking[3]}</td><td>{booking[4]}</td><td>{booking[5]}</td><td>{booking[6]}</td></tr>"
+        
+        output += "</table>"
+        output += f"<p><a href='/admin/dashboard'>← Back to Admin Dashboard</a></p>"
+        
+        return output
         
     except Exception as e:
-        return jsonify({'error': str(e), 'database_path': DB_FILE})
+        print(f"❌ Debug error: {e}")
+        return f"Debug error: {str(e)}", 500
+
+# Update your main route to show admin status
+@app.route('/')
+def index():
+    """Main page with admin login status"""
+    try:
+        # Check if admin is logged in
+        is_admin = session.get('admin_logged_in', False)
+        
+        # Get reviews data
+        reviews_response = get_google_reviews()
+        reviews_data = reviews_response.get('data', {}) if reviews_response.get('success') else {}
+        
+        print(f"🏠 Main page loaded. Admin logged in: {is_admin}")
+        
+        return render_template('index.html', 
+                             reviews_data=reviews_data,
+                             is_admin=is_admin)
+        
+    except Exception as e:
+        print(f"❌ Index error: {e}")
+        return render_template('index.html', 
+                             reviews_data={},
+                             is_admin=False)
 
 # Error handlers
 @app.errorhandler(404)
