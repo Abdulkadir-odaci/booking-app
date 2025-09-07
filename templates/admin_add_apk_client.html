@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APK Klant Toevoegen | Autobedrijf Koree</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-light">
+    <!-- Admin Header -->
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container">
+            <span class="navbar-brand">
+                <i class="fas fa-plus me-2"></i>
+                APK Klant Toevoegen - Autobedrijf Koree
+            </span>
+            <div>
+                <a href="/admin/apk-clients" class="btn btn-outline-light me-2">
+                    <i class="fas fa-list me-1"></i>
+                    APK Klanten
+                </a>
+                <a href="/admin/dashboard" class="btn btn-outline-light me-2">
+                    <i class="fas fa-tachometer-alt me-1"></i>
+                    Dashboard
+                </a>
+                <a href="/admin/logout" class="btn btn-outline-danger">
+                    <i class="fas fa-sign-out-alt me-1"></i>
+                    Uitloggen
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' if category == 'success' else 'warning' if category == 'warning' else 'info' }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Add APK Client Form -->
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h4 class="mb-0">
+                            <i class="fas fa-car me-2"></i>
+                            Nieuwe APK Klant Toevoegen
+                        </h4>
+                        <p class="mb-0 mt-2 opacity-75">Voer kenteken in om automatisch voertuiggegevens op te halen</p>
+                    </div>
+                    
+                    <div class="card-body p-4">
+                        <form action="/admin/create-apk-client" method="POST">
+                            <div class="mb-3">
+                                <label for="licence_plate" class="form-label fw-bold">
+                                    <i class="fas fa-id-card me-2 text-primary"></i>Kenteken *
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="licence_plate" 
+                                       name="licence_plate" 
+                                       placeholder="bijv. 12-ABC-3"
+                                       required 
+                                       autocomplete="off"
+                                       style="text-transform: uppercase;"
+                                       autofocus>
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Voertuiggegevens en APK vervaldatum worden automatisch opgehaald van RDW
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="name" class="form-label fw-bold">
+                                    <i class="fas fa-user me-2 text-primary"></i>Naam Klant *
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="name" 
+                                       name="name" 
+                                       placeholder="Voer volledige naam in"
+                                       required 
+                                       autocomplete="name">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="email" class="form-label fw-bold">
+                                    <i class="fas fa-envelope me-2 text-primary"></i>E-mailadres *
+                                </label>
+                                <input type="email" 
+                                       class="form-control" 
+                                       id="email" 
+                                       name="email" 
+                                       placeholder="klant@voorbeeld.nl"
+                                       required 
+                                       autocomplete="email">
+                                <div class="form-text">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    APK herinneringen worden naar dit adres gestuurd
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="phone" class="form-label fw-bold">
+                                    <i class="fas fa-phone me-2 text-primary"></i>Telefoonnummer
+                                </label>
+                                <input type="tel" 
+                                       class="form-control" 
+                                       id="phone" 
+                                       name="phone" 
+                                       placeholder="06 12345678"
+                                       autocomplete="tel">
+                                <div class="form-text">Optioneel - voor contactdoeleinden</div>
+                            </div>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-magic me-2"></i>Automatisch Gegevens Ophalen</h6>
+                                <p class="mb-0">Bij het invoeren van een geldig Nederlands kenteken halen we automatisch op:</p>
+                                <ul class="mb-0 mt-2">
+                                    <li>Voertuigmerk en model</li>
+                                    <li>APK vervaldatum</li>
+                                    <li>Jaar van eerste toelating</li>
+                                </ul>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="fas fa-plus me-2"></i>
+                                    APK Klant Toevoegen
+                                </button>
+                                <a href="/admin/apk-clients" class="btn btn-outline-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>
+                                    Terug naar APK Klanten
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Auto uppercase license plate -->
+    <script>
+        document.getElementById('licence_plate').addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    </script>
+</body>
+</html>

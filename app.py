@@ -267,6 +267,296 @@ def send_email(to_email, subject, html_body, text_body=None):
         print(f"❌ Email error: {e}")
         return False
 
+
+import requests
+import threading
+
+def init_apk_database():
+    """Initialize APK reminder tables"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return False
+        
+        cursor = connection.cursor()
+        
+        # Create APK clients table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS apk_clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                phone TEXT,
+                licence_plate TEXT NOT NULL UNIQUE,
+                car_brand TEXT,
+                car_model TEXT,
+                car_year INTEGER,
+                apk_expiry_date DATE,
+                last_reminder_sent DATE,
+                reminder_count INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create reminder log table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS apk_reminder_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER,
+                reminder_type TEXT,
+                email_subject TEXT,
+                email_sent BOOLEAN DEFAULT 0,
+                days_until_expiry INTEGER,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                error_message TEXT,
+                FOREIGN KEY (client_id) REFERENCES apk_clients (id)
+            )
+        """)
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        print("✅ APK database tables initialized successfully")
+        return True
+        
+    except Exception as e:
+        print(f"❌ APK database initialization error: {e}")
+        return False
+
+def fetch_rdw_vehicle_data(licence_plate):
+    """Fetch vehicle info from RDW API"""
+    try:
+        # Clean the plate - remove spaces and dashes, convert to uppercase
+        clean_plate = licence_plate.replace(" ", "").replace("-", "").upper()
+        
+        url = f"https://opendata.rdw.nl/resource/m9d7-ebf2.json?kenteken={clean_plate}"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200 and response.json():
+            vehicle_data = response.json()[0]
+            print(f"✅ RDW data found for {clean_plate}: {vehicle_data.get('merk')} {vehicle_data.get('handelsbenaming')}")
+            return vehicle_data
+    except Exception as e:
+        print(f"⚠️ RDW API error for {licence_plate}: {e}")
+    return None
+
+def format_date_display(date_string):
+    """Format date for display"""
+    if not date_string:
+        return "Niet beschikbaar"
+    try:
+        if len(date_string) >= 10:
+            date_obj = datetime.strptime(date_string[:10], '%Y-%m-%d')
+            return date_obj.strftime('%d-%m-%Y')
+    except:
+        pass
+    return date_string
+
+def send_apk_reminder_email(client_data, days_until_expiry):
+    """Send APK reminder email using existing email configuration"""
+    try:
+        subject = f"APK Herinnering - {client_data['licence_plate']} verloopt over {days_until_expiry} dagen"
+        
+        # Create professional HTML email
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #d32f2f 0%, #f44336 100%); color: white; padding: 25px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ padding: 25px; background: #f9f9f9; }}
+                .warning-box {{ background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 8px; margin: 20px 0; }}
+                .vehicle-details {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
+                .contact-info {{ background: #e3f2fd; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+                .footer {{ text-align: center; padding: 20px; color: #666; background: #f5f5f5; border-radius: 0 0 10px 10px; }}
+                .urgent {{ color: #d32f2f; font-weight: bold; }}
+                .btn {{ background: #d32f2f; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 10px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🚗 APK Herinnering</h1>
+                    <h2>Autobedrijf Koree</h2>
+                    <p>Uw APK verloopt binnenkort!</p>
+                </div>
+                
+                <div class="content">
+                    <h2>Beste {client_data['name']},</h2>
+                    
+                    <div class="warning-box">
+                        <h3>⚠️ Belangrijke herinnering</h3>
+                        <p class="urgent">Uw APK verloopt over {days_until_expiry} dagen!</p>
+                        <p>Plan nu uw APK keuring in om problemen te voorkomen.</p>
+                    </div>
+                    
+                    <div class="vehicle-details">
+                        <h3>🚙 Voertuiggegevens</h3>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Kenteken:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{client_data['licence_plate']}</td></tr>
+                            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Merk:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{client_data.get('car_brand', 'Onbekend')}</td></tr>
+                            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Model:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{client_data.get('car_model', 'Onbekend')}</td></tr>
+                            <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>APK vervalt op:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; color: #d32f2f; font-weight: bold;">{format_date_display(client_data['apk_expiry_date'])}</td></tr>
+                        </table>
+                    </div>
+                    
+                    <div class="contact-info">
+                        <h3>📞 Maak nu een afspraak!</h3>
+                        <p><strong>Autobedrijf Koree - Uw specialist voor APK keuringen</strong></p>
+                        <p>📍 <strong>Adres:</strong> Haven 45-48, 3143 BD Maassluis</p>
+                        <p>📞 <strong>Telefoon:</strong> 010 592 8497</p>
+                        <p>📧 <strong>Email:</strong> info@koreeautoservices.nl</p>
+                        <p>🌐 <strong>Website:</strong> <a href="https://koreeautoservices.nl">koreeautoservices.nl</a></p>
+                        
+                        <a href="https://koreeautoservices.nl" class="btn">💻 Online Afspraak Maken</a>
+                    </div>
+                    
+                    <p><strong>Waarom kiezen voor Autobedrijf Koree?</strong></p>
+                    <ul>
+                        <li>✅ Erkend APK keuringsstation</li>
+                        <li>✅ Snelle en betrouwbare service</li>
+                        <li>✅ Eerlijke prijzen</li>
+                        <li>✅ Ervaren monteurs</li>
+                        <li>✅ Directe reparaties mogelijk</li>
+                    </ul>
+                    
+                    <p>Neem vandaag nog contact met ons op om uw APK keuring in te plannen!</p>
+                    
+                    <p style="margin-top: 30px;">
+                        Met vriendelijke groet,<br>
+                        <strong>Team Autobedrijf Koree</strong>
+                    </p>
+                </div>
+                
+                <div class="footer">
+                    <p><small>Dit is een automatische herinnering. Heeft u al een afspraak gemaakt? Dan kunt u deze email negeren.</small></p>
+                    <p><small>Haven 45-48, 3143 BD Maassluis | 010 592 8497 | info@koreeautoservices.nl</small></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Send email using your existing function
+        email_success = send_email(client_data['email'], subject, html_body)
+        
+        if email_success:
+            print(f"✅ APK reminder email sent to {client_data['email']}")
+            return True, "Email sent successfully"
+        else:
+            return False, "Failed to send email"
+        
+    except Exception as e:
+        error_msg = f"Error sending APK reminder email: {str(e)}"
+        print(f"❌ {error_msg}")
+        return False, error_msg
+def check_and_send_apk_reminders():
+    """Check for expiring APK dates and send reminders (only at 30 days)"""
+    try:
+        print("🔍 Checking for APK reminders...")
+        
+        connection = get_db_connection()
+        if connection is None:
+            print("❌ Database connection failed for APK check")
+            return False
+        
+        cursor = connection.cursor()
+        
+        # Get clients with APK expiring in exactly 30 days (or 29-31 days to handle weekends)
+        cursor.execute("""
+            SELECT id, name, email, licence_plate, car_brand, car_model, apk_expiry_date, last_reminder_sent
+            FROM apk_clients 
+            WHERE is_active = 1 
+            AND apk_expiry_date IS NOT NULL
+            AND DATE(apk_expiry_date) >= DATE('now', '+29 days')
+            AND DATE(apk_expiry_date) <= DATE('now', '+31 days')
+            AND (last_reminder_sent IS NULL OR DATE(last_reminder_sent) < DATE('now', '-7 days'))
+            ORDER BY apk_expiry_date ASC
+        """)
+        
+        clients_to_remind = cursor.fetchall()
+        
+        if not clients_to_remind:
+            print("ℹ️ No APK reminders needed today")
+            cursor.close()
+            connection.close()
+            return True
+        
+        today = datetime.now().date()
+        success_count = 0
+        
+        for client in clients_to_remind:
+            try:
+                client_id = client[0]
+                apk_date = datetime.strptime(client[6], '%Y-%m-%d').date()
+                days_until = (apk_date - today).days
+                
+                client_data = {
+                    'name': client[1],
+                    'email': client[2],
+                    'licence_plate': client[3],
+                    'car_brand': client[4],
+                    'car_model': client[5],
+                    'apk_expiry_date': client[6]
+                }
+                
+                # Send reminder email
+                email_success, email_message = send_apk_reminder_email(client_data, days_until)
+                
+                # Log the reminder
+                cursor.execute("""
+                    INSERT INTO apk_reminder_log (client_id, reminder_type, email_subject, days_until_expiry, email_sent, error_message)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (client_id, 'automatic', f"APK Reminder - {client[3]}", days_until, email_success, None if email_success else email_message))
+                
+                if email_success:
+                    # Update last reminder sent
+                    cursor.execute("""
+                        UPDATE apk_clients 
+                        SET last_reminder_sent = DATE('now'), reminder_count = reminder_count + 1
+                        WHERE id = ?
+                    """, (client_id,))
+                    success_count += 1
+                    print(f"✅ Reminder sent to {client[1]} ({client[3]}) - {days_until} days until expiry")
+                
+                connection.commit()
+                
+            except Exception as e:
+                print(f"❌ Error sending reminder to {client[1]}: {e}")
+        
+        cursor.close()
+        connection.close()
+        
+        print(f"✅ APK reminder check complete: {success_count} reminders sent")
+        return True
+        
+    except Exception as e:
+        print(f"❌ APK reminder check error: {e}")
+        return False
+def start_daily_apk_check():
+    """Start daily APK reminder check in background"""
+    def daily_check():
+        import time
+        while True:
+            try:
+                # Check every 24 hours (86400 seconds)
+                # For testing, you can change this to 60 seconds
+                check_and_send_apk_reminders()
+                time.sleep(86400)  # 24 hours
+            except Exception as e:
+                print(f"❌ Daily APK check error: {e}")
+                time.sleep(3600)  # Try again in 1 hour on error
+    
+    # Start background thread
+    thread = threading.Thread(target=daily_check, daemon=True)
+    thread.start()
+    print("🕐 Daily APK reminder check started in background")
 def get_google_reviews():
     """Return real Google reviews data (manually added from API response)"""
     try:
@@ -751,9 +1041,8 @@ def admin_logout():
 @app.route('/admin/dashboard')
 @require_admin_auth
 def admin_dashboard():
-    """Admin dashboard"""
+    """Admin dashboard with APK statistics"""
     try:
-        # Get booking statistics
         connection = get_db_connection()
         if connection is None:
             flash('Database connection failed', 'error')
@@ -761,25 +1050,22 @@ def admin_dashboard():
         
         cursor = connection.cursor()
         
-        # Total bookings
+        # Existing booking stats
         cursor.execute("SELECT COUNT(*) FROM bookings")
         total_bookings = cursor.fetchone()[0]
         
-        # Recent bookings (last 7 days)
         cursor.execute("""
             SELECT COUNT(*) FROM bookings 
             WHERE date >= date('now', '-7 days')
         """)
         recent_bookings = cursor.fetchone()[0]
         
-        # Upcoming bookings
         cursor.execute("""
             SELECT COUNT(*) FROM bookings 
             WHERE date >= date('now') AND status = 'confirmed'
         """)
         upcoming_bookings = cursor.fetchone()[0]
         
-        # Recent bookings details
         cursor.execute("""
             SELECT id, name, email, phone, service, date, time, status, created_at 
             FROM bookings 
@@ -787,6 +1073,34 @@ def admin_dashboard():
             LIMIT 8
         """)
         recent_bookings_details = cursor.fetchall()
+        
+        # APK statistics (check if table exists first)
+        try:
+            cursor.execute("SELECT COUNT(*) FROM apk_clients WHERE is_active = 1")
+            apk_result = cursor.fetchone()
+            total_apk_clients = apk_result[0] if apk_result else 0
+            
+            cursor.execute("""
+                SELECT COUNT(*) FROM apk_clients 
+                WHERE is_active = 1 AND apk_expiry_date IS NOT NULL
+                AND DATE(apk_expiry_date) >= DATE('now') 
+                AND DATE(apk_expiry_date) <= DATE('now', '+30 days')
+            """)
+            apk_result = cursor.fetchone()
+            apk_expiring_soon = apk_result[0] if apk_result else 0
+            
+            cursor.execute("""
+                SELECT COUNT(*) FROM apk_clients 
+                WHERE is_active = 1 AND apk_expiry_date IS NOT NULL
+                AND DATE(apk_expiry_date) < DATE('now')
+            """)
+            apk_result = cursor.fetchone()
+            apk_expired = apk_result[0] if apk_result else 0
+        except:
+            # APK tables don't exist yet
+            total_apk_clients = 0
+            apk_expiring_soon = 0
+            apk_expired = 0
         
         cursor.close()
         connection.close()
@@ -798,6 +1112,12 @@ def admin_dashboard():
             'recent_bookings_details': recent_bookings_details
         }
         
+        apk_stats = {
+            'total_clients': total_apk_clients,
+            'expiring_soon': apk_expiring_soon,
+            'expired': apk_expired
+        }
+        
         admin_info = {
             'username': session.get('admin_username', 'admin'),
             'full_name': 'Administrator'
@@ -805,13 +1125,14 @@ def admin_dashboard():
         
         return render_template('admin_dashboard.html', 
                              stats=stats, 
+                             apk_stats=apk_stats,
                              admin_info=admin_info)
         
     except Exception as e:
         print(f"❌ Dashboard error: {e}")
         flash('Dashboard error occurred', 'error')
         return redirect(url_for('admin_login'))
-
+    
 @app.route('/admin/bookings')
 @require_admin_auth
 def admin_bookings():
@@ -992,7 +1313,243 @@ def debug_database():
     except Exception as e:
         print(f"❌ Debug error: {e}")
         return f"Debug error: {str(e)}", 500
+# APK Management Routes
+@app.route('/admin/apk-clients')
+@require_admin_auth
+def admin_apk_clients():
+    """View all APK clients"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT id, name, email, phone, licence_plate, car_brand, car_model, 
+                   apk_expiry_date, last_reminder_sent, reminder_count, is_active, created_at
+            FROM apk_clients 
+            ORDER BY apk_expiry_date ASC, created_at DESC
+        """)
+        
+        apk_clients = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        
+        # Calculate days until expiry for each client
+        today = datetime.now().date()
+        clients_with_status = []
+        
+        for client in apk_clients:
+            client_dict = {
+                'id': client[0],
+                'name': client[1],
+                'email': client[2],
+                'phone': client[3],
+                'licence_plate': client[4],
+                'car_brand': client[5],
+                'car_model': client[6],
+                'apk_expiry_date': client[7],
+                'last_reminder_sent': client[8],
+                'reminder_count': client[9],
+                'is_active': client[10],
+                'created_at': client[11],
+                'days_until_expiry': None,
+                'status': 'unknown'
+            }
+            
+            if client[7]:  # apk_expiry_date
+                try:
+                    apk_date = datetime.strptime(client[7], '%Y-%m-%d').date()
+                    days_until = (apk_date - today).days
+                    client_dict['days_until_expiry'] = days_until
+                    
+                    if days_until < 0:
+                        client_dict['status'] = 'expired'
+                    elif days_until <= 3:
+                        client_dict['status'] = 'urgent'
+                    elif days_until <= 14:
+                        client_dict['status'] = 'warning'
+                    elif days_until <= 30:
+                        client_dict['status'] = 'upcoming'
+                    else:
+                        client_dict['status'] = 'valid'
+                except:
+                    pass
+            
+            clients_with_status.append(client_dict)
+        
+        return render_template('admin_apk_clients.html', apk_clients=clients_with_status)
+        
+    except Exception as e:
+        print(f"❌ APK clients error: {e}")
+        flash('Error loading APK clients', 'error')
+        return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/add-apk-client')
+@require_admin_auth
+def admin_add_apk_client():
+    """Show form to add new APK client"""
+    return render_template('admin_add_apk_client.html')
+
+@app.route('/admin/create-apk-client', methods=['POST'])
+@require_admin_auth
+def admin_create_apk_client():
+    """Create new APK client with automatic RDW data fetching"""
+    try:
+        # Get form data
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        phone = request.form.get('phone', '').strip()
+        licence_plate = request.form.get('licence_plate', '').strip().upper()
+        
+        # Validation
+        errors = []
+        if not name:
+            errors.append("Name is required")
+        if not email:
+            errors.append("Email is required")
+        if not licence_plate:
+            errors.append("Licence plate is required")
+        
+        if errors:
+            for error in errors:
+                flash(error, 'error')
+            return redirect(url_for('admin_add_apk_client'))
+        
+        # Check if licence plate already exists
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_add_apk_client'))
+        
+        cursor = connection.cursor()
+        cursor.execute("SELECT id FROM apk_clients WHERE licence_plate = ?", (licence_plate,))
+        existing = cursor.fetchone()
+        
+        if existing:
+            cursor.close()
+            connection.close()
+            flash('Licence plate already exists in database', 'error')
+            return redirect(url_for('admin_add_apk_client'))
+        
+        # Fetch vehicle data from RDW API
+        print(f"🔍 Fetching RDW data for: {licence_plate}")
+        vehicle_data = fetch_rdw_vehicle_data(licence_plate)
+        
+        car_brand = None
+        car_model = None
+        apk_expiry_date = None
+        car_year = None
+        
+        if vehicle_data:
+            car_brand = vehicle_data.get('merk')
+            car_model = vehicle_data.get('handelsbenaming')
+            if vehicle_data.get('vervaldatum_apk'):
+                apk_expiry_date = vehicle_data.get('vervaldatum_apk')
+            if vehicle_data.get('datum_eerste_toelating'):
+                try:
+                    first_reg = vehicle_data.get('datum_eerste_toelating')
+                    car_year = int(first_reg[:4]) if len(first_reg) >= 4 else None
+                except:
+                    pass
+        
+        # Save to database
+        cursor.execute("""
+            INSERT INTO apk_clients (name, email, phone, licence_plate, car_brand, car_model, car_year, apk_expiry_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (name, email, phone, licence_plate, car_brand, car_model, car_year, apk_expiry_date))
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        success_msg = f'APK client {name} added successfully!'
+        if vehicle_data:
+            success_msg += f' Vehicle: {car_brand} {car_model}'
+            if apk_expiry_date:
+                success_msg += f', APK expires: {format_date_display(apk_expiry_date)}'
+        else:
+            success_msg += ' (No RDW data found - please check license plate)'
+        
+        flash(success_msg, 'success')
+        return redirect(url_for('admin_apk_clients'))
+        
+    except Exception as e:
+        print(f"❌ Create APK client error: {e}")
+        flash(f'Error creating APK client: {str(e)}', 'error')
+        return redirect(url_for('admin_add_apk_client'))
+
+@app.route('/admin/send-apk-reminders')
+@require_admin_auth
+def admin_send_apk_reminders():
+    """Send APK reminders manually"""
+    try:
+        check_and_send_apk_reminders()
+        flash('APK reminder check completed successfully', 'success')
+        return redirect(url_for('admin_apk_clients'))
+        
+    except Exception as e:
+        print(f"❌ Manual APK reminder error: {e}")
+        flash('Error sending APK reminders', 'error')
+        return redirect(url_for('admin_apk_clients'))
+
+@app.route('/admin/delete-apk-client/<int:client_id>')
+@require_admin_auth
+def admin_delete_apk_client(client_id):
+    """Delete APK client"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_apk_clients'))
+        
+        cursor = connection.cursor()
+        cursor.execute("DELETE FROM apk_clients WHERE id = ?", (client_id,))
+        cursor.execute("DELETE FROM apk_reminder_log WHERE client_id = ?", (client_id,))
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        flash('APK client deleted successfully', 'success')
+        
+    except Exception as e:
+        print(f"❌ Delete APK client error: {e}")
+        flash('Error deleting APK client', 'error')
+    
+    return redirect(url_for('admin_apk_clients'))
+
+@app.route('/admin/apk-reminder-logs')
+@require_admin_auth
+def admin_apk_reminder_logs():
+    """View APK reminder logs"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT l.id, c.name, c.email, c.licence_plate, l.reminder_type, 
+                   l.email_subject, l.days_until_expiry, l.email_sent, l.sent_at, l.error_message
+            FROM apk_reminder_log l
+            JOIN apk_clients c ON l.client_id = c.id
+            ORDER BY l.sent_at DESC
+            LIMIT 100
+        """)
+        
+        logs = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        
+        return render_template('admin_apk_logs.html', logs=logs)
+        
+    except Exception as e:
+        print(f"❌ APK logs error: {e}")
+        flash('Error loading APK logs', 'error')
+        return redirect(url_for('admin_dashboard'))
 # Update your main route to show admin status
 @app.route('/')
 def index():
@@ -1026,6 +1583,15 @@ def not_found(error):
 def internal_error(error):
     return render_template('500.html'), 500
 
+
+def initialize_apk_system():
+    """Initialize APK system safely"""
+    try:
+        init_apk_database()
+        start_daily_apk_check()
+        print("✅ APK reminder system initialized")
+    except Exception as e:
+        print(f"⚠️ APK system initialization error: {e}")
 # Application startup
 if __name__ == "__main__":
     print("=" * 60)
@@ -1046,6 +1612,10 @@ if __name__ == "__main__":
     # Test database connection
     if test_database_connection():
         print("✅ Database connection successful!")
+        
+        # Initialize APK system
+        initialize_apk_system()
+        
         print()
         print("🚀 Starting Flask application...")
         
@@ -1070,6 +1640,7 @@ if __name__ == "__main__":
         print(f"🔍 Trying to create database at: {DB_FILE}")
         if init_db():
             print("✅ Database created successfully!")
+            initialize_apk_system()
             port = int(os.environ.get('PORT', 5000))
             app.run(debug=not IS_AWS, host="0.0.0.0", port=port)
         else:
@@ -1082,3 +1653,4 @@ def lambda_handler(event, context):
     if not test_database_connection():
         init_db()
     return app(event, context)
+

@@ -80,22 +80,49 @@
                     </div>
                     <div class="card-body">
                         <div class="row">
-                            <div class="col-md-4 mb-2">
+                            <div class="col-md-3 mb-2">
                                 <a href="/admin/bookings" class="btn btn-primary w-100">
                                     <i class="fas fa-list me-2"></i>
                                     View All Bookings
                                 </a>
                             </div>
-                            <div class="col-md-4 mb-2">
+                            <div class="col-md-3 mb-2">
                                 <a href="/admin/download-db" class="btn btn-success w-100">
                                     <i class="fas fa-download me-2"></i>
                                     Download Database
                                 </a>
                             </div>
-                            <div class="col-md-4 mb-2">
+                            <div class="col-md-3 mb-2">
                                 <a href="/debug/database" class="btn btn-secondary w-100">
                                     <i class="fas fa-database me-2"></i>
                                     Database Info
+                                </a>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <a href="/admin/apk-clients" class="btn btn-warning w-100">
+                                    <i class="fas fa-car me-2"></i>
+                                    APK Klanten
+                                    {% if apk_stats and apk_stats.expiring_soon > 0 %}
+                                        <span class="badge bg-danger">{{ apk_stats.expiring_soon }}</span>
+                                    {% endif %}
+                                </a>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <a href="/admin/add-apk-client" class="btn btn-info w-100">
+                                    <i class="fas fa-plus me-2"></i>
+                                    APK Klant Toevoegen
+                                </a>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <a href="/admin/send-apk-reminders" class="btn btn-danger w-100">
+                                    <i class="fas fa-envelope me-2"></i>
+                                    APK Herinneringen
+                                </a>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <a href="/admin/apk-reminder-logs" class="btn btn-secondary w-100">
+                                    <i class="fas fa-history me-2"></i>
+                                    Herinnering Logboek
                                 </a>
                             </div>
                         </div>
