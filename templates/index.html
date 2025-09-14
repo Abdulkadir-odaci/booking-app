@@ -17,7 +17,7 @@
 <body>
     <!-- WhatsApp Floating Button -->
     <div class="whatsapp-float">
-        <a href="https://wa.me/31623967989?text=Hallo,%20ik%20zou%20graag%20een%20afspraak%20maken" target="_blank">
+        <a href="https://wa.me/31630889760?text=Hallo,%20ik%20zou%20graag%20een%20afspraak%20maken" target="_blank">
             <i class="fab fa-whatsapp"></i>
         </a>
     </div>
@@ -45,7 +45,7 @@
                         <a class="nav-link" href="#about">Over Ons</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#reviews-section">Reviews</a>
+                        <a class="nav-link" href="#reviews">Reviews</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="#contact">Contact</a>
@@ -78,7 +78,7 @@
                             <a href="#booking" class="btn btn-primary btn-lg me-3">
                                 <i class="fas fa-calendar-plus"></i> Afspraak Maken
                             </a>
-                            <a href="https://wa.me/31623967989" class="btn btn-success btn-lg" target="_blank">
+                            <a href="https://wa.me/31630889760" class="btn btn-success btn-lg" target="_blank">
                                 <i class="fab fa-whatsapp"></i> WhatsApp
                             </a>
                         </div>
@@ -245,95 +245,49 @@
         </div>
     </section>
 
-    <!-- Improved Reviews Section - More Professional -->
-    <section id="reviews-section" class="py-5" style="background: linear-gradient(to bottom, #f8f9fa, #ffffff);">
+    <!-- Customer Reviews Section -->
+    <section class="py-5 bg-light" id="reviews">
         <div class="container">
             <div class="row">
-                <div class="col-lg-12 text-center mb-5">
-                    <h2 class="display-5 fw-bold text-primary">
+                <div class="col-12 text-center mb-5">
+                    <h2 class="display-4 fw-bold text-primary mb-3">
                         <i class="fas fa-star text-warning me-2"></i>
                         Klantbeoordelingen
                     </h2>
-                </div>
-            </div>
-
-            {% if show_reviews and has_reviews and reviews_data and reviews_data.reviews %}
-                <!-- Improved Rating Summary Card -->
-                <div class="row mb-5">
-                    <div class="col-lg-8 mx-auto">
-                        <div class="card border-0 shadow-lg rounded-4" style="background: linear-gradient(135deg, #1e3c72, #2a5298); color: white;">
-                            <div class="card-body p-4">
-                                <div class="row align-items-center">
-                                    <div class="col-md-4 text-center">
-                                        <h2 class="display-2 fw-bold mb-2">{{ "%.1f"|format(reviews_data.overall_rating) }}</h2>
-                                        <div class="mb-2">
-                                            {% for i in range(5) %}
-                                                {% if i < reviews_data.overall_rating %}
-                                                    <i class="fas fa-star" style="color: #ffc107; font-size: 1.5rem;"></i>
-                                                {% else %}
-                                                    <i class="far fa-star" style="color: #ffc107; font-size: 1.5rem;"></i>
-                                                {% endif %}
-                                            {% endfor %}
-                                        </div>
-                                        <div class="d-flex justify-content-center">
-                                            <span class="badge bg-light text-primary px-3 py-2 fw-bold rounded-pill">
-                                                <i class="fab fa-google me-1"></i>
-                                                Google Reviews
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-8">
-                                        <h4 class="fw-bold">{{ reviews_data.business_name or "Autobedrijf Koree" }}</h4>
-                                        <p class="mb-2">
-                                            <i class="fas fa-map-marker-alt me-2"></i>
-                                            {{ reviews_data.business_address or "Haven 45-48, 3143 BD Maassluis" }}
-                                        </p>
-                                        <p class="mb-2">
-                                            <i class="fas fa-users me-2"></i>
-                                            Gebaseerd op {{ reviews_data.total_reviews or 32 }} beoordelingen
-                                        </p>
-                                        <p class="mb-0">
-                                            <i class="fas fa-phone me-2"></i>
-                                            {{ reviews_data.business_phone or "010 592 8497" }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
+                    <p class="lead text-muted">Wat onze klanten zeggen over Autobedrijf Koree</p>
+                    
+                    {% if reviews_data and reviews_data.overall_rating %}
+                    <div class="d-flex justify-content-center align-items-center mb-4">
+                        <div class="me-3">
+                            <h3 class="mb-0 text-warning">{{ "%.1f"|format(reviews_data.overall_rating) }}</h3>
+                        </div>
+                        <div class="me-3">
+                            {% for i in range(5) %}
+                                {% if i < reviews_data.overall_rating %}
+                                    <i class="fas fa-star text-warning"></i>
+                                {% else %}
+                                    <i class="far fa-star text-warning"></i>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <div>
+                            <small class="text-muted">
+                                Gebaseerd op {{ reviews_data.total_reviews }} beoordelingen
+                            </small>
                         </div>
                     </div>
+                    {% endif %}
                 </div>
-
-                <!-- Improved Individual Reviews -->
-                <div class="row">
+            </div>
+            
+            <!-- Reviews Grid -->
+            <div class="row">
+                {% if reviews_data and reviews_data.reviews %}
                     {% for review in reviews_data.reviews %}
                     <div class="col-lg-4 col-md-6 mb-4">
-                        <div class="card h-100 border-0 shadow-sm review-card">
-                            <div class="card-body p-4">
-                                <div class="d-flex align-items-center mb-3">
-                                    {% if review.profile_photo_url %}
-                                        <img src="{{ review.profile_photo_url }}" 
-                                             alt="{{ review.author_name }}" 
-                                             class="rounded-circle me-3 border shadow-sm" 
-                                             style="width: 55px; height: 55px; object-fit: cover;">
-                                    {% else %}
-                                        <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3 shadow-sm" 
-                                             style="width: 55px; height: 55px; font-weight: bold;">
-                                            {{ review.author_name[0] if review.author_name else "?" }}
-                                        </div>
-                                    {% endif %}
-                                    <div>
-                                        <h6 class="mb-1 fw-bold">{{ review.author_name or "Anonymous" }}</h6>
-                                        <div class="d-flex align-items-center">
-                                            <small class="text-muted me-2">{{ review.relative_time_description }}</small>
-                                            {% if review.is_local_guide %}
-                                                <span class="badge bg-primary px-2 py-1 rounded-pill">
-                                                    <i class="fas fa-award me-1"></i>Local Guide
-                                                </span>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                </div>
-                                
+                        <div class="card h-100 shadow-sm border-0">
+                            <div class="card-body d-flex flex-column">
+                                <!-- Star Rating -->
                                 <div class="mb-3">
                                     {% for i in range(5) %}
                                         {% if i < review.rating %}
@@ -342,40 +296,65 @@
                                             <i class="far fa-star text-warning"></i>
                                         {% endif %}
                                     {% endfor %}
+                                    <span class="ms-2 text-muted">{{ review.rating }}/5</span>
                                 </div>
                                 
-                                <p class="card-text text-muted">{{ review.text }}</p>
+                                <!-- Review Text -->
+                                <blockquote class="blockquote flex-grow-1">
+                                    <p class="mb-0">"{{ review.text }}"</p>
+                                </blockquote>
+                                
+                                <!-- Author Info -->
+                                <div class="d-flex align-items-center mt-3">
+                                    {% if review.profile_photo_url %}
+                                    <img src="{{ review.profile_photo_url }}" 
+                                         alt="{{ review.author_name }}" 
+                                         class="rounded-circle me-3" 
+                                         width="50" 
+                                         height="50"
+                                         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIHZpZXdCb3g9IjAgMCA1MCA1MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjUiIGN5PSIyNSIgcj0iMjUiIGZpbGw9IiNlOWVjZWYiLz4KPHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1zbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIgZmlsbD0iIzZjNzU3ZCIvPgo8L3N2Zz4KPC9zdmc+'">
+                                    {% else %}
+                                    <div class="rounded-circle bg-primary d-flex align-items-center justify-content-center me-3" 
+                                         style="width: 50px; height: 50px;">
+                                        <i class="fas fa-user text-white"></i>
+                                    </div>
+                                    {% endif %}
+                                    
+                                    <div>
+                                        <h6 class="mb-0 fw-bold">{{ review.author_name }}</h6>
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar-alt me-1"></i>
+                                            {{ review.date }}
+                                        </small>
+                                        {% if review.is_local_guide %}
+                                        <br><small class="badge bg-success">Local Guide</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
-                </div>
-            {% else %}
-                <!-- Improved No Reviews State -->
-                <div class="row">
-                    <div class="col-lg-6 mx-auto text-center">
-                        <div class="card border-0 shadow-sm">
-                            <div class="card-body p-5">
-                                <i class="fas fa-star fa-3x text-warning mb-4 opacity-50"></i>
-                                <h4 class="fw-bold text-primary mb-3">Google Beoordelingen</h4>
-                                {% if error_message %}
-                                    <p class="text-muted mb-4">{{ error_message }}</p>
-                                {% else %}
-                                    <p class="text-muted mb-4">Onze klantbeoordelingen worden geladen.</p>
-                                {% endif %}
-                                
-                                <div class="d-flex flex-wrap justify-content-center gap-2">
-                                    <a href="https://www.google.com/maps/place/Autobedrijf+Koree" 
+                {% else %}
+                    <!-- Fallback if no reviews available -->
+                    <div class="col-12 text-center">
+                        <div class="card shadow-sm border-0 py-5">
+                            <div class="card-body">
+                                <i class="fas fa-star text-warning fa-3x mb-3"></i>
+                                <h4 class="text-muted">Beoordelingen worden geladen...</h4>
+                                <p class="text-muted">
+                                    Bekijk onze beoordelingen op 
+                                    <a href="https://www.google.com/search?q=Autobedrijf+Koree+Maassluis" 
                                        target="_blank" 
-                                       class="btn btn-primary rounded-pill px-4 py-2">
-                                        <i class="fab fa-google me-2"></i>Bekijk op Google
+                                       class="text-primary text-decoration-none">
+                                        <i class="fab fa-google me-1"></i>Google
                                     </a>
-                                </div>
+                                </p>
                             </div>
                         </div>
                     </div>
-                </div>
-            {% endif %}
+                {% endif %}
+            </div>
         </div>
     </section>
 
@@ -461,10 +440,10 @@
                     <div class="contact-info">
                         <h5 class="text-warning mb-3">Contactgegevens</h5>
                         <p><i class="fas fa-map-marker-alt me-2"></i> Fenacoliuslaan 60-64, 3143 AE Maassluis</p>
-                        <p><i class="fas fa-phone me-2"></i> +31 6 23967989</p>
+                        <p><i class="fas fa-phone me-2"></i> +31 6 30889760</p>
                         <p><i class="fas fa-envelope me-2"></i> info@koreeautoservice.nl</p>
                         <p><i class="fab fa-whatsapp me-2"></i> 
-                            <a href="https://wa.me/31623967989" class="text-warning" target="_blank">
+                            <a href="https://wa.me/31630889760" class="text-warning" target="_blank">
                                 WhatsApp Direct
                             </a>
                         </p>
@@ -841,4 +820,28 @@ function setupSmoothScrolling() {
             
             let targetElement = document.getElementById(targetId);
             
-            if
+            if (!targetElement) {
+                console.warn(`⚠️ Target element not found: ${targetId}`);
+                return;
+            }
+            
+            // Scroll to the target element
+            targetElement.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+            
+            // Close the navbar if open (for mobile view)
+            const navbarCollapse = document.getElementById('navbarNav');
+            if (navbarCollapse) {
+                const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
+                if (bsCollapse) {
+                    bsCollapse.hide();
+                }
+            }
+        });
+    });
+}
+    </script>
+</body>
+</html>

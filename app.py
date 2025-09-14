@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import re
 from functools import wraps
 from flask import session
+from user_agents import parse
+from urllib.parse import quote
 
 # Load environment variables
 load_dotenv()
@@ -32,16 +34,97 @@ else:
 print(f"🗄️ Database file path: {DB_FILE}")
 print(f"📁 Database file exists: {os.path.exists(DB_FILE)}")
 
-# Email configuration
-MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtpout.secureserver.net')
-MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))
-MAIL_USERNAME = os.environ.get('MAIL_USERNAME', 'info@koreeautoservices.nl')
-MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD', 'Batman72@')
-ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'info@koreeautoservices.nl')
+# Email Configuration (SECURE - no hardcoded fallbacks)
+MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD') 
+MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')  # Only non-sensitive fallback
+MAIL_PORT = int(os.environ.get('MAIL_PORT', 587))  # Only non-sensitive fallback
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL')
 
-# Google Places configuration
+# API Keys (SECURE - no hardcoded fallbacks)
 GOOGLE_PLACES_API_KEY = os.environ.get('GOOGLE_PLACES_API_KEY')
-GOOGLE_PLACE_ID = os.environ.get('GOOGLE_PLACE_ID', 'ChIJIUb6ApRMxEcRDLLwZYBbzz0')
+GOOGLE_PLACE_ID = os.environ.get('GOOGLE_PLACE_ID')
+# Add validation to ensure critical variables exist
+# Admin Configuration (SECURE - no hardcoded fallbacks)  
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
+
+# Add validation to ensure critical variables exist (CORRECTED)
+required_env_vars = [
+    'MAIL_USERNAME', 'MAIL_PASSWORD', 'ADMIN_EMAIL'  # Only email-related variables
+    # Note: ADMIN_USERNAME and ADMIN_PASSWORD are for login, not email
+]
+
+missing_vars = [var for var in required_env_vars if not os.environ.get(var)]
+if missing_vars:
+    print(f"❌ Missing required email environment variables: {missing_vars}")
+    print("Please check your .env file!")
+    print("Current email .env values:")
+    for var in required_env_vars:
+        value = os.environ.get(var)
+        if var == 'MAIL_PASSWORD':
+            print(f"  {var}: {'✅ SET (' + str(len(value)) + ' chars)' if value else '❌ NOT SET'}")
+        else:
+            print(f"  {var}: {value or '❌ NOT SET'}")
+    
+    print("\nAdmin credentials (separate from email):")
+    print(f"  ADMIN_USERNAME: {'✅ SET' if ADMIN_USERNAME else '❌ NOT SET'}")
+    print(f"  ADMIN_PASSWORD: {'✅ SET' if ADMIN_PASSWORD else '❌ NOT SET'}")
+    exit(1)
+
+print("✅ All required email environment variables are set")
+
+print("✅ All required environment variables are set")
+def test_email_connection():
+    """Test email connection and configuration with detailed debugging"""
+    try:
+        print("🔍 Testing email configuration...")
+        print(f"MAIL_SERVER: {MAIL_SERVER}")
+        print(f"MAIL_PORT: {MAIL_PORT}")
+        print(f"MAIL_USERNAME: {MAIL_USERNAME}")
+        print(f"MAIL_PASSWORD: {'✅ SET (' + str(len(MAIL_PASSWORD)) + ' chars)' if MAIL_PASSWORD else '❌ NOT SET'}")
+        
+        # Show first/last chars of password for debugging (safely)
+        if MAIL_PASSWORD and len(MAIL_PASSWORD) > 4:
+            masked = MAIL_PASSWORD[0] + '*' * (len(MAIL_PASSWORD) - 2) + MAIL_PASSWORD[-1]
+            print(f"Password preview: {masked}")
+        
+        # Test SMTP connection with detailed debugging
+        print("📡 Connecting to SMTP server...")
+        server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=30)
+        server.set_debuglevel(1)  # Enable detailed SMTP debugging
+        
+        print("🔐 Starting TLS...")
+        server.starttls()
+        
+        print("👤 Attempting login...")
+        server.login(MAIL_USERNAME, MAIL_PASSWORD)
+        
+        print("✅ Login successful!")
+        server.quit()
+        
+        print("✅ Email connection test successful!")
+        return True
+        
+    except smtplib.SMTPAuthenticationError as auth_error:
+        print(f"❌ SMTP Authentication Error: {auth_error}")
+        print("🔧 Possible fixes:")
+        print("   1. Check if password is correct")
+        print("   2. Enable 'Less Secure Apps' in email settings")
+        print("   3. Generate App Password instead of regular password")
+        print("   4. Check if 2FA is enabled")
+        return False
+    except smtplib.SMTPConnectError as conn_error:
+        print(f"❌ SMTP Connection Error: {conn_error}")
+        print("🔧 Possible fixes:")
+        print("   1. Check MAIL_SERVER and MAIL_PORT settings")
+        print("   2. Check internet connection")
+        print("   3. Try different port (465 instead of 587)")
+        return False
+    except Exception as e:
+        print(f"❌ Email connection test failed: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
+        return False
 
 # Business hours configuration
 BUSINESS_HOURS = {
@@ -118,12 +201,103 @@ def init_db():
             )
         ''')
         
+        # Create visitor tracking table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS visitor_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_address TEXT,
+                user_agent TEXT,
+                page_visited TEXT,
+                referrer TEXT,
+                country TEXT,
+                city TEXT,
+                device_type TEXT,
+                browser TEXT,
+                os TEXT,
+                session_id TEXT,
+                visit_duration INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create admin login tracking table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS admin_login_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                login_successful BOOLEAN,
+                failure_reason TEXT,
+                country TEXT,
+                city TEXT,
+                browser TEXT,
+                os TEXT,
+                session_duration INTEGER,
+                logout_time TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create page analytics table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS page_analytics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                page_name TEXT NOT NULL,
+                page_url TEXT,
+                visitor_ip TEXT,
+                session_id TEXT,
+                time_spent INTEGER DEFAULT 0,
+                scroll_depth INTEGER DEFAULT 0,
+                clicks_count INTEGER DEFAULT 0,
+                form_interactions INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create APK tables
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS apk_clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL,
+                phone TEXT,
+                licence_plate TEXT NOT NULL UNIQUE,
+                car_brand TEXT,
+                car_model TEXT,
+                car_year INTEGER,
+                apk_expiry_date DATE,
+                last_reminder_sent DATE,
+                reminder_count INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS apk_reminder_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                client_id INTEGER,
+                client_name TEXT,
+                client_email TEXT,
+                client_licence_plate TEXT,
+                reminder_type TEXT DEFAULT 'automatic',
+                email_subject TEXT,
+                days_until_expiry INTEGER,
+                email_sent BOOLEAN DEFAULT 0,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                error_message TEXT,
+                FOREIGN KEY (client_id) REFERENCES apk_clients (id)
+            )
+        """)
+        
         # Check if services exist, if not add default ones
         cursor.execute("SELECT COUNT(*) FROM services")
         service_count = cursor.fetchone()[0]
         
         if service_count == 0:
-            print("📝 Adding default services (without prices)...")
+            print("📝 Adding default services...")
             default_services = [
                 ("APK Keuring", "Officiële APK keuring voor uw voertuig", 0.0, 45),
                 ("Grote Beurt", "Uitgebreide onderhoudsbeurt", 0.0, 120),
@@ -142,7 +316,7 @@ def init_db():
                 """, service)
             
             connection.commit()
-            print(f"✅ Added {len(default_services)} default services (no prices displayed)")
+            print(f"✅ Added {len(default_services)} default services")
         
         cursor.close()
         connection.close()
@@ -230,12 +404,44 @@ def generate_time_slots():
     
     print(f"✅ Generated {len(time_slots)} time slots: {time_slots}")
     return time_slots
-
+def test_godaddy_smtp_variants():
+    """Test different GoDaddy SMTP configurations"""
+    configs = [
+        {'server': 'smtpout.secureserver.net', 'port': 587, 'tls': True},
+        {'server': 'smtpout.secureserver.net', 'port': 465, 'tls': False, 'ssl': True},
+        {'server': 'smtp.secureserver.net', 'port': 587, 'tls': True},
+        {'server': 'smtp.secureserver.net', 'port': 465, 'tls': False, 'ssl': True},
+    ]
+    
+    for i, config in enumerate(configs, 1):
+        try:
+            print(f"\n🔍 Testing config {i}: {config['server']}:{config['port']}")
+            
+            if config.get('ssl'):
+                server = smtplib.SMTP_SSL(config['server'], config['port'])
+            else:
+                server = smtplib.SMTP(config['server'], config['port'])
+                if config.get('tls'):
+                    server.starttls()
+            
+            server.login(MAIL_USERNAME, MAIL_PASSWORD)
+            server.quit()
+            
+            print(f"✅ Config {i} WORKS!")
+            print(f"   Use: MAIL_SERVER={config['server']}")
+            print(f"   Use: MAIL_PORT={config['port']}")
+            return config
+            
+        except Exception as e:
+            print(f"❌ Config {i} failed: {e}")
+    
+    return None
 def send_email(to_email, subject, html_body, text_body=None):
-    """Send email using GoDaddy SMTP"""
+    """Send email using GoDaddy SMTP with better error handling"""
     try:
         print(f"📧 Sending email to: {to_email}")
         print(f"📧 Subject: {subject}")
+        print(f"📧 Using server: {MAIL_SERVER}:{MAIL_PORT}")
         
         msg = MIMEMultipart('alternative')
         msg['From'] = MAIL_USERNAME
@@ -251,31 +457,71 @@ def send_email(to_email, subject, html_body, text_body=None):
         html_part = MIMEText(html_body, 'html')
         msg.attach(html_part)
         
-        # Connect to GoDaddy SMTP
-        server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT)
-        server.starttls()
-        server.login(MAIL_USERNAME, MAIL_PASSWORD)
+        # Try different connection methods
+        server = None
+        try:
+            # Method 1: Regular SMTP with STARTTLS (port 587)
+            if MAIL_PORT == 587:
+                print("🔗 Connecting with STARTTLS...")
+                server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=30)
+                server.starttls()
+            
+            # Method 2: SMTP_SSL (port 465)  
+            elif MAIL_PORT == 465:
+                print("🔗 Connecting with SSL...")
+                server = smtplib.SMTP_SSL(MAIL_SERVER, MAIL_PORT, timeout=30)
+            
+            # Method 3: Regular SMTP (port 25)
+            else:
+                print("🔗 Connecting without encryption...")
+                server = smtplib.SMTP(MAIL_SERVER, MAIL_PORT, timeout=30)
+            
+            print("👤 Logging in...")
+            server.login(MAIL_USERNAME, MAIL_PASSWORD)
+            
+            print("📤 Sending message...")
+            server.send_message(msg)
+            server.quit()
+            
+            print(f"✅ Email sent successfully to {to_email}")
+            return True
         
-        # Send email
-        server.send_message(msg)
-        server.quit()
+        except smtplib.SMTPAuthenticationError as auth_error:
+            print(f"❌ Authentication failed: {auth_error}")
+            print("🔧 Try: Check password, enable app access, disable 2FA")
+            return False
         
-        print(f"✅ Email sent successfully to {to_email}")
-        return True
+        except smtplib.SMTPConnectError as conn_error:
+            print(f"❌ Connection failed: {conn_error}")
+            print("🔧 Try: Different port (465 instead of 587)")
+            return False
+        
+        except Exception as smtp_error:
+            print(f"❌ SMTP error: {smtp_error}")
+            return False
+        
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except:
+                    pass
         
     except Exception as e:
         print(f"❌ Email error: {e}")
+        print(f"❌ Error type: {type(e).__name__}")
         return False
-
-
 import requests
 import threading
 
 def init_apk_database():
-    """Initialize APK reminder tables"""
+    """Initialize APK database tables if they don't exist"""
     try:
+        print("🔧 Initializing APK database tables...")
+        
         connection = get_db_connection()
         if connection is None:
+            print("❌ Could not connect to database")
             return False
         
         cursor = connection.cursor()
@@ -300,15 +546,18 @@ def init_apk_database():
             )
         """)
         
-        # Create reminder log table
+        # Create APK reminder log table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS apk_reminder_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 client_id INTEGER,
-                reminder_type TEXT,
+                client_name TEXT,
+                client_email TEXT,
+                client_licence_plate TEXT,
+                reminder_type TEXT DEFAULT 'automatic',
                 email_subject TEXT,
-                email_sent BOOLEAN DEFAULT 0,
                 days_until_expiry INTEGER,
+                email_sent BOOLEAN DEFAULT 0,
                 sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 error_message TEXT,
                 FOREIGN KEY (client_id) REFERENCES apk_clients (id)
@@ -324,6 +573,8 @@ def init_apk_database():
         
     except Exception as e:
         print(f"❌ APK database initialization error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 def fetch_rdw_vehicle_data(licence_plate):
@@ -355,6 +606,204 @@ def format_date_display(date_string):
         pass
     return date_string
 
+def generate_calendar_event_data(name, service, date_str, time_str, message, booking_id):
+    """Generate calendar event data for different calendar systems"""
+    try:
+        # Parse date and time
+        booking_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        booking_time = datetime.strptime(time_str, '%H:%M').time()
+        
+        # Create datetime objects
+        start_datetime = datetime.combine(booking_date, booking_time)
+        end_datetime = start_datetime + timedelta(hours=1)  # Default 1 hour duration
+        
+        # Format for different calendar systems
+        start_utc = start_datetime.strftime('%Y%m%dT%H%M%S')
+        end_utc = end_datetime.strftime('%Y%m%dT%H%M%S')
+        
+        # Event details
+        title = f"Autobedrijf Koree - {service}"
+        description = f"""Afspraak bij Autobedrijf Koree
+        
+Service: {service}
+Klant: {name}
+Booking ID: {booking_id}
+
+Locatie: Haven 45-48, 3143 BD Maassluis
+Telefoon: 010 592 8497
+Website: https://koreeautoservices.nl
+
+{f'Opmerking: {message}' if message else ''}
+
+Dit is uw bevestigde afspraak. Kom op tijd en neem eventuele documenten mee."""
+        
+        location = "Autobedrijf Koree, Haven 45-48, 3143 BD Maassluis, Nederland"
+        
+        # URL encode parameters
+        title_encoded = quote(title)
+        description_encoded = quote(description)
+        location_encoded = quote(location)
+        
+        # Generate Google Calendar URL
+        google_url = (
+            f"https://calendar.google.com/calendar/render?action=TEMPLATE"
+            f"&text={title_encoded}"
+            f"&dates={start_utc}/{end_utc}"
+            f"&details={description_encoded}"
+            f"&location={location_encoded}"
+            f"&sf=true&output=xml"
+        )
+        
+        # Generate Outlook Web URL
+        outlook_url = (
+            f"https://outlook.live.com/calendar/0/deeplink/compose?subject={title_encoded}"
+            f"&body={description_encoded}"
+            f"&location={location_encoded}"
+            f"&startdt={start_datetime.isoformat()}"
+            f"&enddt={end_datetime.isoformat()}"
+        )
+        
+        # Generate ICS download URL (we'll create an endpoint for this)
+        ics_url = f"{request.url_root}download-calendar-event/{booking_id}"
+        
+        return {
+            'google_url': google_url,
+            'outlook_url': outlook_url,
+            'ics_url': ics_url,
+            'start_datetime': start_datetime,
+            'end_datetime': end_datetime,
+            'title': title,
+            'description': description,
+            'location': location
+        }
+        
+    except Exception as e:
+        print(f"❌ Calendar generation error: {e}")
+        return {
+            'google_url': '#',
+            'outlook_url': '#',
+            'ics_url': '#',
+            'start_datetime': None,
+            'end_datetime': None,
+            'title': 'Calendar Error',
+            'description': 'Error generating calendar event',
+            'location': 'Autobedrijf Koree'
+        }
+
+def generate_ics_content(booking_data):
+    """Generate ICS calendar file content"""
+    try:
+        # Parse booking data
+        start_dt = datetime.strptime(f"{booking_data['date']} {booking_data['time']}", '%Y-%m-%d %H:%M')
+        end_dt = start_dt + timedelta(hours=1)
+        
+        # Format for ICS (UTC format)
+        start_utc = start_dt.strftime('%Y%m%dT%H%M%SZ')
+        end_utc = end_dt.strftime('%Y%m%dT%H%M%SZ')
+        created_utc = datetime.now().strftime('%Y%m%dT%H%M%SZ')
+        
+        # Generate unique UID
+        import uuid
+        uid = str(uuid.uuid4())
+        
+        # Prepare description text (separate from f-string to avoid backslash issues)
+        base_description = f"Afspraak bij Autobedrijf Koree\\n\\nService: {booking_data['service']}\\nKlant: {booking_data['name']}\\nTelefoon: {booking_data['phone']}\\n\\nLocatie: Haven 45-48\\, 3143 BD Maassluis\\nTelefoon bedrijf: 010 592 8497\\nWebsite: https://koreeautoservices.nl"
+        
+        # Add message if exists
+        if booking_data.get('message'):
+            description_text = base_description + f"\\n\\nOpmerking: {booking_data['message']}"
+        else:
+            description_text = base_description
+        
+        # ICS content
+        ics_content = f"""BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Autobedrijf Koree//Booking System//NL
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+UID:{uid}
+DTSTAMP:{created_utc}
+DTSTART:{start_utc}
+DTEND:{end_utc}
+SUMMARY:Autobedrijf Koree - {booking_data['service']}
+DESCRIPTION:{description_text}
+LOCATION:Autobedrijf Koree\\, Haven 45-48\\, 3143 BD Maassluis\\, Nederland
+STATUS:CONFIRMED
+SEQUENCE:0
+BEGIN:VALARM
+TRIGGER:-PT1H
+DESCRIPTION:Herinnering: Afspraak Autobedrijf Koree over 1 uur
+ACTION:DISPLAY
+END:VALARM
+END:VEVENT
+END:VCALENDAR"""
+        
+        return ics_content
+        
+    except Exception as e:
+        print(f"❌ ICS generation error: {e}")
+        return None
+@app.route('/download-calendar-event/<int:booking_id>')
+def download_calendar_event(booking_id):
+    """Download ICS calendar file for booking"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return "Database error", 500
+        
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT id, name, email, phone, service, date, time, message 
+            FROM bookings 
+            WHERE id = ?
+        """, (booking_id,))
+        
+        booking = cursor.fetchone()
+        cursor.close()
+        connection.close()
+        
+        if not booking:
+            return "Booking not found", 404
+        
+        # Convert to dict
+        booking_data = {
+            'id': booking[0],
+            'name': booking[1],
+            'email': booking[2],
+            'phone': booking[3],
+            'service': booking[4],
+            'date': booking[5],
+            'time': booking[6],
+            'message': booking[7]
+        }
+        
+        # Generate ICS content
+        ics_content = generate_ics_content(booking_data)
+        
+        if not ics_content:
+            return "Error generating calendar file", 500
+        
+        # Create response
+        from flask import Response
+        
+        filename = f"autobedrijf_koree_afspraak_{booking_id}.ics"
+        
+        response = Response(
+            ics_content,
+            mimetype='text/calendar',
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "Content-Type": "text/calendar; charset=utf-8"
+            }
+        )
+        
+        print(f"📅 Calendar file downloaded for booking {booking_id}")
+        return response
+        
+    except Exception as e:
+        print(f"❌ Calendar download error: {e}")
+        return "Calendar download error", 500
 def send_apk_reminder_email(client_data, days_until_expiry):
     """Send APK reminder email using existing email configuration"""
     try:
@@ -525,7 +974,7 @@ def check_and_send_apk_reminders():
                     success_count += 1
                     print(f"✅ Reminder sent to {client[1]} ({client[3]}) - {days_until} days until expiry")
                 
-                connection.commit()
+                connection.commit();
                 
             except Exception as e:
                 print(f"❌ Error sending reminder to {client[1]}: {e}")
@@ -651,6 +1100,167 @@ def require_admin_auth(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# Add this to the beginning of any APK route
+def ensure_apk_tables_exist():
+    """Ensure APK tables exist before using them"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return False
+        
+        cursor = connection.cursor()
+        
+        # Check if APK tables exist
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name IN ('apk_clients', 'apk_reminder_log')
+        """)
+        
+        existing_tables = [row[0] for row in cursor.fetchall()]
+        
+        if len(existing_tables) < 2:
+            print("🔧 APK tables missing, creating them...")
+            cursor.close()
+            connection.close()
+            return init_apk_database()
+        
+        cursor.close()
+        connection.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error checking APK tables: {e}")
+        return False
+
+def get_client_info(request):
+    """Extract client information from request (works in cloud and local)"""
+    try:
+        # Get IP address (works with AWS load balancers)
+        ip_address = request.headers.get('X-Forwarded-For', 
+                    request.headers.get('X-Real-IP', 
+                    request.remote_addr or 'unknown'))
+        
+        # Handle comma-separated IPs from load balancers
+        if ',' in ip_address:
+            ip_address = ip_address.split(',')[0].strip()
+        
+        user_agent_string = request.headers.get('User-Agent', '')
+        user_agent = parse(user_agent_string)
+        
+        # Get referrer
+        referrer = request.headers.get('Referer', 'direct')
+        
+        client_info = {
+            'ip_address': ip_address,
+            'user_agent': user_agent_string,
+            'referrer': referrer,
+            'browser': f"{user_agent.browser.family} {user_agent.browser.version_string}",
+            'os': f"{user_agent.os.family} {user_agent.os.version_string}",
+            'device_type': 'Mobile' if user_agent.is_mobile else 'Desktop',
+            'country': 'Unknown',  # You can add GeoIP later
+            'city': 'Unknown'
+        }
+        
+        return client_info
+        
+    except Exception as e:
+        print(f"❌ Error getting client info: {e}")
+        return {
+            'ip_address': 'unknown',
+            'user_agent': '',
+            'referrer': 'unknown',
+            'browser': 'unknown',
+            'os': 'unknown',
+            'device_type': 'unknown',
+            'country': 'unknown',
+            'city': 'unknown'
+        }
+
+def track_visitor(request, page_name, page_url):
+    """Track website visitor (works in cloud and local)"""
+    try:
+        client_info = get_client_info(request)
+        session_id = session.get('visitor_session_id')
+        
+        if not session_id:
+            import uuid
+            session_id = str(uuid.uuid4())
+            session['visitor_session_id'] = session_id
+        
+        connection = get_db_connection()
+        if connection is None:
+            return False
+        
+        cursor = connection.cursor()
+        
+        cursor.execute("""
+            INSERT INTO visitor_logs 
+            (ip_address, user_agent, page_visited, referrer, country, city, 
+             device_type, browser, os, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            client_info['ip_address'],
+            client_info['user_agent'],
+            page_name,
+            client_info['referrer'],
+            client_info['country'],
+            client_info['city'],
+            client_info['device_type'],
+            client_info['browser'],
+            client_info['os'],
+            session_id
+        ))
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        print(f"📊 Tracked visitor: {client_info['ip_address']} -> {page_name}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error tracking visitor: {e}")
+        return False
+
+def track_admin_login(request, username, success, failure_reason=None):
+    """Track admin login attempts (works in cloud and local)"""
+    try:
+        client_info = get_client_info(request)
+        
+        connection = get_db_connection()
+        if connection is None:
+            return False
+        
+        cursor = connection.cursor()
+        
+        cursor.execute("""
+            INSERT INTO admin_login_logs 
+            (username, ip_address, user_agent, login_successful, failure_reason,
+             country, city, browser, os)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            username,
+            client_info['ip_address'],
+            client_info['user_agent'],
+            success,
+            failure_reason,
+            client_info['country'],
+            client_info['city'],
+            client_info['browser'],
+            client_info['os']
+        ))
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        status = "✅ SUCCESS" if success else "❌ FAILED"
+        print(f"🔐 Admin login {status}: {username} from {client_info['ip_address']}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error tracking admin login: {e}")
+        return False
 # Routes
 @app.route("/api/services", methods=["GET"])
 def get_services():
@@ -873,9 +1483,12 @@ def book_appointment():
         
         print(f"✅ Booking saved with ID: {booking_id}")
         
-        # Send confirmation emails
+        # Generate calendar event data
+        calendar_data = generate_calendar_event_data(name, service, date, time, message, booking_id)
+        
+        # Send confirmation emails with calendar integration
         try:
-            # Customer email
+            # Customer email with calendar buttons
             customer_html = f"""
             <!DOCTYPE html>
             <html>
@@ -887,6 +1500,11 @@ def book_appointment():
                     .header {{ background: #2c3e50; color: white; padding: 20px; text-align: center; }}
                     .content {{ padding: 20px; background: #f9f9f9; }}
                     .booking-details {{ background: white; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+                    .calendar-buttons {{ background: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; }}
+                    .calendar-btn {{ display: inline-block; padding: 12px 25px; margin: 5px; text-decoration: none; border-radius: 5px; font-weight: bold; color: white; }}
+                    .outlook-btn {{ background: #0078d4; }}
+                    .google-btn {{ background: #4285f4; }}
+                    .ics-btn {{ background: #28a745; }}
                     .footer {{ text-align: center; padding: 20px; color: #666; }}
                 </style>
             </head>
@@ -903,7 +1521,7 @@ def book_appointment():
                         <div class="booking-details">
                             <h3>📅 Afspraak Details</h3>
                             <p><strong>Service:</strong> {service}</p>
-                            <p><strong>Datum:</strong> {date}</p>
+                            <p><strong>Datum:</strong> {datetime.strptime(date, '%Y-%m-%d').strftime('%d-%m-%Y')}</p>
                             <p><strong>Tijd:</strong> {time}</p>
                             <p><strong>Naam:</strong> {name}</p>
                             <p><strong>Telefoon:</strong> {phone}</p>
@@ -911,13 +1529,35 @@ def book_appointment():
                             {f'<p><strong>Bericht:</strong> {message}</p>' if message else ''}
                         </div>
                         
-                        <p>Wij zien u graag op de afgesproken tijd. Heeft u vragen? Bel ons op +31 6 23967989.</p>
+                        <div class="calendar-buttons">
+                            <h3>📅 Voeg toe aan uw agenda</h3>
+                            <p>Klik op één van onderstaande knoppen om deze afspraak toe te voegen aan uw agenda:</p>
+                            
+                            <a href="{calendar_data['outlook_url']}" class="calendar-btn outlook-btn" target="_blank">
+                                📅 Outlook Agenda
+                            </a>
+                            
+                            <a href="{calendar_data['google_url']}" class="calendar-btn google-btn" target="_blank">
+                                📅 Google Agenda
+                            </a>
+                            
+                            <a href="{calendar_data['ics_url']}" class="calendar-btn ics-btn">
+                                📅 Download ICS Bestand
+                            </a>
+                        </div>
+                        
+                        <p>Wij zien u graag op de afgesproken tijd. Heeft u vragen? Bel ons op 010 592 8497.</p>
+                        
+                        <p><strong>🏢 Autobedrijf Koree</strong><br>
+                        Haven 45-48, 3143 BD Maassluis<br>
+                        📞 010 592 8497<br>
+                        📧 info@koreeautoservices.nl</p>
                         
                         <p>Met vriendelijke groet,<br>
                         Team Autobedrijf Koree</p>
                     </div>
                     <div class="footer">
-                        <p>Haven 45-48, 3143 BD Maassluis | 010 592 8497 | info@koreeautoservices.nl</p>
+                        <p>Haven 45-48, 3143 BD Maassluis | info@koreeautoservices.nl</p>
                     </div>
                 </div>
             </body>
@@ -953,13 +1593,15 @@ def book_appointment():
                             <h3>📅 Afspraak Details</h3>
                             <p><strong>Booking ID:</strong> {booking_id}</p>
                             <p><strong>Service:</strong> {service}</p>
-                            <p><strong>Datum:</strong> {date}</p>
+                            <p><strong>Datum:</strong> {datetime.strptime(date, '%Y-%m-%d').strftime('%d-%m-%Y')}</p>
                             <p><strong>Tijd:</strong> {time}</p>
                             <p><strong>Naam:</strong> {name}</p>
                             <p><strong>Telefoon:</strong> {phone}</p>
                             <p><strong>Email:</strong> {email}</p>
                             {f'<p><strong>Bericht:</strong> {message}</p>' if message else ''}
                         </div>
+                        
+                        <p><a href="{calendar_data['outlook_url']}" style="background: #0078d4; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">📅 Voeg toe aan Outlook</a></p>
                     </div>
                 </div>
             </body>
@@ -973,8 +1615,9 @@ def book_appointment():
             # Don't fail the booking if email fails
         
         return jsonify({
-            "message": f"Afspraak succesvol geboekt voor {date} om {time}. Bevestiging verzonden naar {email}.",
-            "booking_id": booking_id
+            "message": f"Afspraak succesvol geboekt voor {datetime.strptime(date, '%Y-%m-%d').strftime('%d-%m-%Y')} om {time}. Bevestiging verzonden naar {email}.",
+            "booking_id": booking_id,
+            "calendar_links": calendar_data
         })
         
     except Exception as e:
@@ -992,24 +1635,23 @@ def admin_redirect():
 
 @app.route('/admin/login')
 def admin_login():
-    """Admin login page"""
+    # Track admin login page visit
+    track_visitor(request, 'Admin Login Page', '/admin/login')
+    
     if session.get('admin_logged_in'):
         return redirect(url_for('admin_dashboard'))
     return render_template('admin_login.html')
 
 @app.route('/admin/authenticate', methods=['POST'])
 def admin_authenticate():
-    """Handle admin login"""
     try:
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
         
-        # Get admin credentials from environment
-        admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-        admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+        admin_username = os.environ.get('ADMIN_USERNAME')
+        admin_password = os.environ.get('ADMIN_PASSWORD')
         
         if username == admin_username and password == admin_password:
-            # Successful login
             import time
             session['admin_logged_in'] = True
             session['admin_username'] = username
@@ -1017,15 +1659,24 @@ def admin_authenticate():
             session['last_activity'] = time.time()
             session.permanent = True
             
+            # Track successful login
+            track_admin_login(request, username, True)
+            
             print(f"✅ Successful admin login: {username}")
             flash('Welcome to admin dashboard!', 'success')
             return redirect(url_for('admin_dashboard'))
         else:
+            # Track failed login
+            track_admin_login(request, username, False, 'Invalid credentials')
+            
             print(f"❌ Failed login attempt for username: {username}")
             flash('Invalid username or password', 'error')
             return redirect(url_for('admin_login'))
             
     except Exception as e:
+        # Track system error
+        track_admin_login(request, username if 'username' in locals() else 'unknown', False, f'System error: {str(e)}')
+        
         print(f"❌ Authentication error: {e}")
         flash('Login error occurred', 'error')
         return redirect(url_for('admin_login'))
@@ -1132,7 +1783,32 @@ def admin_dashboard():
         print(f"❌ Dashboard error: {e}")
         flash('Dashboard error occurred', 'error')
         return redirect(url_for('admin_login'))
-    
+def upgrade_database_schema():
+    """Upgrade database schema to add missing columns"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return False
+        
+        cursor = connection.cursor()
+        
+        # Check if duration_minutes column exists in services table
+        cursor.execute("PRAGMA table_info(services)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        if 'duration_minutes' not in columns:
+            print("🔧 Adding duration_minutes column to services table...")
+            cursor.execute("ALTER TABLE services ADD COLUMN duration_minutes INTEGER DEFAULT 60")
+            connection.commit()
+            print("✅ duration_minutes column added successfully")
+        
+        cursor.close()
+        connection.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Database upgrade error: {e}")
+        return False    
 @app.route('/admin/bookings')
 @require_admin_auth
 def admin_bookings():
@@ -1321,18 +1997,70 @@ def admin_apk_clients():
     try:
         connection = get_db_connection()
         if connection is None:
-            flash('Database connection failed', 'error')
+            flash('Database verbinding mislukt', 'error')
             return redirect(url_for('admin_dashboard'))
         
         cursor = connection.cursor()
-        cursor.execute("""
-            SELECT id, name, email, phone, licence_plate, car_brand, car_model, 
-                   apk_expiry_date, last_reminder_sent, reminder_count, is_active, created_at
-            FROM apk_clients 
-            ORDER BY apk_expiry_date ASC, created_at DESC
-        """)
         
-        apk_clients = cursor.fetchall()
+        # Check if APK tables exist first
+        try:
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='apk_clients'
+            """)
+            
+            if not cursor.fetchone():
+                # APK tables don't exist, initialize them
+                print("🔧 APK tables not found, initializing...")
+                cursor.close()
+                connection.close()
+                
+                # Initialize APK database
+                if init_apk_database():
+                    flash('APK systeem succesvol geïnitialiseerd', 'success')
+                else:
+                    flash('Fout bij initialiseren APK systeem', 'error')
+                    return redirect(url_for('admin_dashboard'))
+                
+                # Get new connection after initialization
+                connection = get_db_connection()
+                if connection is None:
+                    flash('Database verbinding mislukt na initialisatie', 'error')
+                    return redirect(url_for('admin_dashboard'))
+                cursor = connection.cursor()
+        except Exception as table_check_error:
+            print(f"❌ Table check error: {table_check_error}")
+            cursor.close()
+            connection.close()
+            
+            # Try to initialize
+            if init_apk_database():
+                flash('APK systeem geïnitialiseerd', 'success')
+                connection = get_db_connection()
+                if connection is None:
+                    flash('Database verbinding mislukt', 'error')
+                    return redirect(url_for('admin_dashboard'))
+                cursor = connection.cursor()
+            else:
+                flash('Kan APK systeem niet initialiseren', 'error')
+                return redirect(url_for('admin_dashboard'))
+        
+        # Now safely query the APK clients
+        try:
+            cursor.execute("""
+                SELECT id, name, email, phone, licence_plate, car_brand, car_model, 
+                       apk_expiry_date, last_reminder_sent, reminder_count, is_active, created_at
+                FROM apk_clients 
+                ORDER BY apk_expiry_date ASC, created_at DESC
+            """)
+            
+            apk_clients = cursor.fetchall()
+        except Exception as query_error:
+            print(f"❌ Query error: {query_error}")
+            # If query fails, return empty list
+            apk_clients = []
+            flash('Kan APK klanten niet laden - lege lijst getoond', 'warning')
+        
         cursor.close()
         connection.close()
         
@@ -1383,7 +2111,9 @@ def admin_apk_clients():
         
     except Exception as e:
         print(f"❌ APK clients error: {e}")
-        flash('Error loading APK clients', 'error')
+        import traceback
+        traceback.print_exc()
+        flash(f'Fout bij laden APK klanten: {str(e)}', 'error')
         return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/add-apk-client')
@@ -1406,11 +2136,11 @@ def admin_create_apk_client():
         # Validation
         errors = []
         if not name:
-            errors.append("Name is required")
+            errors.append("Naam is verplicht")
         if not email:
-            errors.append("Email is required")
+            errors.append("E-mail is verplicht")
         if not licence_plate:
-            errors.append("Licence plate is required")
+            errors.append("Kenteken is verplicht")
         
         if errors:
             for error in errors:
@@ -1420,17 +2150,41 @@ def admin_create_apk_client():
         # Check if licence plate already exists
         connection = get_db_connection()
         if connection is None:
-            flash('Database connection failed', 'error')
+            flash('Database verbinding mislukt', 'error')
             return redirect(url_for('admin_add_apk_client'))
         
         cursor = connection.cursor()
+        
+        # Check if APK table exists, if not initialize
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='apk_clients'
+        """)
+        
+        if not cursor.fetchone():
+            cursor.close()
+            connection.close()
+            
+            # Initialize APK tables
+            if not init_apk_database():
+                flash('Fout bij initialiseren APK systeem', 'error')
+                return redirect(url_for('admin_add_apk_client'))
+            
+            # Get new connection
+            connection = get_db_connection()
+            if connection is None:
+                flash('Database verbinding mislukt na initialisatie', 'error')
+                return redirect(url_for('admin_add_apk_client'))
+            cursor = connection.cursor()
+        
+        # Check if licence plate already exists
         cursor.execute("SELECT id FROM apk_clients WHERE licence_plate = ?", (licence_plate,))
         existing = cursor.fetchone()
         
         if existing:
             cursor.close()
             connection.close()
-            flash('Licence plate already exists in database', 'error')
+            flash('Kenteken bestaat al in de database', 'error')
             return redirect(url_for('admin_add_apk_client'))
         
         # Fetch vehicle data from RDW API
@@ -1464,20 +2218,22 @@ def admin_create_apk_client():
         cursor.close()
         connection.close()
         
-        success_msg = f'APK client {name} added successfully!'
+        success_msg = f'APK klant {name} succesvol toegevoegd!'
         if vehicle_data:
-            success_msg += f' Vehicle: {car_brand} {car_model}'
+            success_msg += f' Voertuig: {car_brand} {car_model}'
             if apk_expiry_date:
-                success_msg += f', APK expires: {format_date_display(apk_expiry_date)}'
+                success_msg += f', APK vervalt: {format_date_display(apk_expiry_date)}'
         else:
-            success_msg += ' (No RDW data found - please check license plate)'
+            success_msg += ' (Geen RDW gegevens gevonden - controleer kenteken)'
         
         flash(success_msg, 'success')
         return redirect(url_for('admin_apk_clients'))
         
     except Exception as e:
         print(f"❌ Create APK client error: {e}")
-        flash(f'Error creating APK client: {str(e)}', 'error')
+        import traceback
+        traceback.print_exc()
+        flash(f'Fout bij aanmaken APK klant: {str(e)}', 'error')
         return redirect(url_for('admin_add_apk_client'))
 
 @app.route('/admin/send-apk-reminders')
@@ -1550,15 +2306,215 @@ def admin_apk_reminder_logs():
         print(f"❌ APK logs error: {e}")
         flash('Error loading APK logs', 'error')
         return redirect(url_for('admin_dashboard'))
-# Update your main route to show admin status
+@app.route('/admin/analytics')
+@require_admin_auth
+def admin_analytics():
+    """View website analytics and admin login logs"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        cursor = connection.cursor()
+        
+        # Initialize empty data in case queries fail
+        analytics_data = {
+            'visitor_stats': {
+                'unique_visitors': 0,
+                'total_page_views': 0,
+                'active_days': 0
+            },
+            'popular_pages': [],
+            'browser_stats': [],
+            'device_stats': [],
+            'recent_visitors': [],
+            'admin_logins': [],
+            'daily_stats': []
+        }
+        
+        try:
+            # Check if visitor_logs table exists
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='visitor_logs'
+            """)
+            
+            if not cursor.fetchone():
+                print("⚠️ visitor_logs table doesn't exist, creating it...")
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS visitor_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        ip_address TEXT,
+                        user_agent TEXT,
+                        page_visited TEXT,
+                        referrer TEXT,
+                        country TEXT,
+                        city TEXT,
+                        device_type TEXT,
+                        browser TEXT,
+                        os TEXT,
+                        session_id TEXT,
+                        visit_duration INTEGER DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                connection.commit()
+            
+            # Check if admin_login_logs table exists
+            cursor.execute("""
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='admin_login_logs'
+            """)
+            
+            if not cursor.fetchone():
+                print("⚠️ admin_login_logs table doesn't exist, creating it...")
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS admin_login_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT,
+                        ip_address TEXT,
+                        user_agent TEXT,
+                        login_successful BOOLEAN,
+                        failure_reason TEXT,
+                        country TEXT,
+                        city TEXT,
+                        browser TEXT,
+                        os TEXT,
+                        session_duration INTEGER,
+                        logout_time TIMESTAMP,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                connection.commit()
+            
+            # Get visitor statistics
+            cursor.execute("""
+                SELECT 
+                    COUNT(DISTINCT session_id) as unique_visitors,
+                    COUNT(*) as total_page_views,
+                    COUNT(DISTINCT DATE(created_at)) as active_days
+                FROM visitor_logs 
+                WHERE created_at >= datetime('now', '-30 days')
+            """)
+            visitor_stats = cursor.fetchone()
+            
+            if visitor_stats:
+                analytics_data['visitor_stats'] = {
+                    'unique_visitors': visitor_stats[0] or 0,
+                    'total_page_views': visitor_stats[1] or 0,
+                    'active_days': visitor_stats[2] or 0
+                }
+            
+            # Get popular pages
+            cursor.execute("""
+                SELECT page_visited, COUNT(*) as visits
+                FROM visitor_logs 
+                WHERE created_at >= datetime('now', '-30 days')
+                GROUP BY page_visited
+                ORDER BY visits DESC
+                LIMIT 10
+            """)
+            analytics_data['popular_pages'] = cursor.fetchall()
+            
+            # Get browser statistics
+            cursor.execute("""
+                SELECT browser, COUNT(*) as count
+                FROM visitor_logs 
+                WHERE created_at >= datetime('now', '-30 days')
+                AND browser != 'unknown' AND browser IS NOT NULL AND browser != ''
+                GROUP BY browser
+                ORDER BY count DESC
+                LIMIT 10
+            """)
+            analytics_data['browser_stats'] = cursor.fetchall()
+            
+            # Get device statistics
+            cursor.execute("""
+                SELECT device_type, COUNT(*) as count
+                FROM visitor_logs 
+                WHERE created_at >= datetime('now', '-30 days')
+                AND device_type IS NOT NULL AND device_type != ''
+                GROUP BY device_type
+                ORDER BY count DESC
+            """)
+            analytics_data['device_stats'] = cursor.fetchall()
+            
+            # Get recent visitors
+            cursor.execute("""
+                SELECT ip_address, page_visited, browser, device_type, created_at
+                FROM visitor_logs 
+                ORDER BY created_at DESC
+                LIMIT 50
+            """)
+            analytics_data['recent_visitors'] = cursor.fetchall()
+            
+            # Get admin login attempts
+            cursor.execute("""
+                SELECT username, ip_address, login_successful, failure_reason, 
+                       browser, created_at
+                FROM admin_login_logs 
+                ORDER BY created_at DESC
+                LIMIT 100
+            """)
+            analytics_data['admin_logins'] = cursor.fetchall()
+            
+        except Exception as query_error:
+            print(f"⚠️ Query error in analytics: {query_error}")
+            # Keep default empty data
+        
+        cursor.close()
+        connection.close()
+        
+        print(f"✅ Analytics data prepared: {len(analytics_data['recent_visitors'])} visitors, {len(analytics_data['admin_logins'])} admin logs")
+        
+        return render_template('admin_analytics.html', analytics=analytics_data)
+        
+    except Exception as e:
+        print(f"❌ Analytics error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Return template with empty data instead of crashing
+        empty_analytics = {
+            'visitor_stats': {'unique_visitors': 0, 'total_page_views': 0, 'active_days': 0},
+            'popular_pages': [],
+            'browser_stats': [],
+            'device_stats': [],
+            'recent_visitors': [],
+            'admin_logins': [],
+            'daily_stats': []
+        }
+        
+        flash('Analytics data could not be loaded', 'warning')
+        return render_template('admin_analytics.html', analytics=empty_analytics)
+        
+    except Exception as e:
+        print(f"❌ Analytics error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Return template with empty data instead of crashing
+        empty_analytics = {
+            'visitor_stats': {'unique_visitors': 0, 'total_page_views': 0, 'active_days': 0},
+            'popular_pages': [],
+            'browser_stats': [],
+            'device_stats': [],
+            'recent_visitors': [],
+            'admin_logins': [],
+            'daily_stats': []
+        }
+        
+        flash('Analytics data could not be loaded', 'warning')
+        return render_template('admin_analytics.html', analytics=empty_analytics)
+
 @app.route('/')
 def index():
-    """Main page with admin login status"""
     try:
-        # Check if admin is logged in
-        is_admin = session.get('admin_logged_in', False)
+        # Track visitor
+        track_visitor(request, 'Homepage', '/')
         
-        # Get reviews data
+        is_admin = session.get('admin_logged_in', False)
         reviews_response = get_google_reviews()
         reviews_data = reviews_response.get('data', {}) if reviews_response.get('success') else {}
         
@@ -1583,15 +2539,68 @@ def not_found(error):
 def internal_error(error):
     return render_template('500.html'), 500
 
-
-def initialize_apk_system():
-    """Initialize APK system safely"""
+# Debug routes
+@app.route('/debug/init-analytics-tables')
+def debug_init_analytics_tables():
+    """Create analytics tables if they don't exist"""
     try:
-        init_apk_database()
-        start_daily_apk_check()
-        print("✅ APK reminder system initialized")
+        connection = get_db_connection()
+        if connection is None:
+            return "❌ Database connection failed", 500
+        
+        cursor = connection.cursor()
+        
+        # Create visitor tracking table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS visitor_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ip_address TEXT,
+                user_agent TEXT,
+                page_visited TEXT,
+                referrer TEXT,
+                country TEXT,
+                city TEXT,
+                device_type TEXT,
+                browser TEXT,
+                os TEXT,
+                session_id TEXT,
+                visit_duration INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create admin login tracking table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS admin_login_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                login_successful BOOLEAN,
+                failure_reason TEXT,
+                country TEXT,
+                city TEXT,
+                browser TEXT,
+                os TEXT,
+                session_duration INTEGER,
+                logout_time TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        return """
+        <h1>✅ Analytics Tables Created Successfully!</h1>
+        <p><a href="/admin/analytics">Test Analytics Page</a></p>
+        <p><a href="/admin/dashboard">Back to Dashboard</a></p>
+        """
+        
     except Exception as e:
-        print(f"⚠️ APK system initialization error: {e}")
+        return f"❌ Error: {str(e)}", 500
+
 # Application startup
 if __name__ == "__main__":
     print("=" * 60)
@@ -1600,39 +2609,41 @@ if __name__ == "__main__":
     print(f"📍 Environment: {'AWS' if IS_AWS else 'Local'}")
     print(f"🗄️ Database: {DB_FILE}")
     
-    # List database files in directory
+    # List database files
     app_dir = os.path.dirname(__file__) or '.'
     db_files = [f for f in os.listdir(app_dir) if f.endswith('.db')]
     print(f"📋 Found database files: {db_files}")
     print("=" * 60)
     
-    # Consolidate databases if needed
+    # Consolidate and test database
     consolidate_databases()
+    upgrade_database_schema()
+    test_email_connection()
+    test_godaddy_smtp_variants()
     
-    # Test database connection
     if test_database_connection():
         print("✅ Database connection successful!")
-        
-        # Initialize APK system
-        initialize_apk_system()
-        
         print()
         print("🚀 Starting Flask application...")
         
+        # Start APK reminder checker in background
+        start_daily_apk_check()
+        
         if IS_AWS:
             print("🌐 Running on AWS")
-            print("📊 Admin: /admin/bookings")
+            print("📊 Admin: /admin/dashboard")
+            print("📈 Analytics: /admin/analytics")
             print("🔧 Debug: /debug/database")
-            print("💗 Health: /health")
         else:
             print("💻 Running locally")
-            print("📊 Admin: http://localhost:5000/admin/bookings")
+            print("📊 Admin: http://localhost:5000/admin/dashboard")
             print("🌐 Website: http://localhost:5000")
+            print("📈 Analytics: http://localhost:5000/admin/analytics")
             print("🔧 Debug: http://localhost:5000/debug/database")
         
         print("=" * 60)
         
-        # Start Flask
+        # Run the app
         port = int(os.environ.get('PORT', 5000))
         app.run(debug=not IS_AWS, host="0.0.0.0", port=port)
     else:
@@ -1640,17 +2651,16 @@ if __name__ == "__main__":
         print(f"🔍 Trying to create database at: {DB_FILE}")
         if init_db():
             print("✅ Database created successfully!")
-            initialize_apk_system()
+            print("🚀 Starting Flask application...")
+            
+            # Start APK reminder checker
+            start_daily_apk_check()
+            
             port = int(os.environ.get('PORT', 5000))
             app.run(debug=not IS_AWS, host="0.0.0.0", port=port)
         else:
             print("❌ Failed to create database!")
+            print("Please check your database configuration and permissions.")
 
-# AWS Lambda handler (if using Lambda)
-def lambda_handler(event, context):
-    """AWS Lambda entry point"""
-    consolidate_databases()
-    if not test_database_connection():
-        init_db()
-    return app(event, context)
+
 
