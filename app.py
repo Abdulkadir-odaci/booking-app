@@ -1896,6 +1896,7 @@ def download_database():
         import os
         
         if os.path.exists(DB_FILE):
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             download_name = f'koree_database_{timestamp}.db'
             
             print(f"📥 Database download by admin")
