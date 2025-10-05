@@ -10,6 +10,8 @@ import re
 from functools import wraps
 from flask import session
 from user_agents import parse
+# Make sure this import exists at the TOP of your file (around line 12)
+from apscheduler.schedulers.background import BackgroundScheduler
 from urllib.parse import quote
 
 # Load environment variables
@@ -306,7 +308,8 @@ def init_db():
                 ("Banden Service", "Bandenwissel en balanceren", 0.0, 30),
                 ("Airco Service", "Airco onderhoud en reparatie", 0.0, 60),
                 ("Remmen Service", "Remmen controle en onderhoud", 0.0, 90),
-                ("Motor Diagnostiek", "Uitgebreide motor diagnose", 0.0, 60)
+                ("Motor Diagnostiek", "Uitgebreide motor diagnose", 0.0, 60),
+                ("Overig", "Andere diensten en specifieke wensen", 0.0, 60)  # Add this line
             ]
             
             for service in default_services:
@@ -615,16 +618,20 @@ def generate_calendar_event_data(name, service, date_str, time_str, message, boo
         
         # Create datetime objects
         start_datetime = datetime.combine(booking_date, booking_time)
-        end_datetime = start_datetime + timedelta(hours=1)  # Default 1 hour duration
+        end_datetime = start_datetime + timedelta(hours=1)
         
         # Format for different calendar systems
         start_utc = start_datetime.strftime('%Y%m%dT%H%M%S')
         end_utc = end_datetime.strftime('%Y%m%dT%H%M%S')
         
+        # Format for Outlook (ISO format)
+        start_iso = start_datetime.isoformat()
+        end_iso = end_datetime.isoformat()
+        
         # Event details
         title = f"Autobedrijf Koree - {service}"
         description = f"""Afspraak bij Autobedrijf Koree
-        
+
 Service: {service}
 Klant: {name}
 Booking ID: {booking_id}
@@ -659,12 +666,12 @@ Dit is uw bevestigde afspraak. Kom op tijd en neem eventuele documenten mee."""
             f"https://outlook.live.com/calendar/0/deeplink/compose?subject={title_encoded}"
             f"&body={description_encoded}"
             f"&location={location_encoded}"
-            f"&startdt={start_datetime.isoformat()}"
-            f"&enddt={end_datetime.isoformat()}"
+            f"&startdt={start_iso}"
+            f"&enddt={end_iso}"
         )
         
-        # Generate ICS download URL (we'll create an endpoint for this)
-        ics_url = f"{request.url_root}download-calendar-event/{booking_id}"
+        # Generate ICS download URL
+        ics_url = f"/download-calendar-event/{booking_id}"  # Fixed: removed request.url_root
         
         return {
             'google_url': google_url,
@@ -925,7 +932,7 @@ def check_and_send_apk_reminders():
             AND apk_expiry_date IS NOT NULL
             AND DATE(apk_expiry_date) >= DATE('now', '+29 days')
             AND DATE(apk_expiry_date) <= DATE('now', '+31 days')
-            AND (last_reminder_sent IS NULL OR DATE(last_reminder_sent) < DATE('now', '-7 days'))
+            AND (last_reminder_sent IS NULL OR DATE(last_reminder_sent) < DATE('now', '-25 days'))
             ORDER BY apk_expiry_date ASC
         """)
         
@@ -989,23 +996,29 @@ def check_and_send_apk_reminders():
         print(f"❌ APK reminder check error: {e}")
         return False
 def start_daily_apk_check():
-    """Start daily APK reminder check in background"""
-    def daily_check():
-        import time
-        while True:
-            try:
-                # Check every 24 hours (86400 seconds)
-                # For testing, you can change this to 60 seconds
-                check_and_send_apk_reminders()
-                time.sleep(86400)  # 24 hours
-            except Exception as e:
-                print(f"❌ Daily APK check error: {e}")
-                time.sleep(3600)  # Try again in 1 hour on error
-    
-    # Start background thread
-    thread = threading.Thread(target=daily_check, daemon=True)
-    thread.start()
-    print("🕐 Daily APK reminder check started in background")
+    """Start daily APK reminder check using scheduler"""
+    try:
+        # BackgroundScheduler is already imported at top of file
+        scheduler = BackgroundScheduler()
+        
+        # Run every day at 9:00 AM
+        scheduler.add_job(
+            func=check_and_send_apk_reminders,
+            trigger='cron',
+            hour=9,
+            minute=0,
+            id='apk_daily_check',
+            replace_existing=True
+        )
+        
+        scheduler.start()
+        print("✅ APK daily check scheduled for 9:00 AM")
+        
+        return scheduler
+        
+    except Exception as e:
+        print(f"❌ Failed to start APK scheduler: {e}")
+        return None
 def get_google_reviews():
     """Return real Google reviews data (manually added from API response)"""
     try:
@@ -1077,30 +1090,6 @@ def get_google_reviews():
     except Exception as e:
         print(f"❌ Error loading manual reviews: {e}")
         return {'success': False, 'error': f'Error: {str(e)}'}
-
-# Authentication decorator
-def require_admin_auth(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('admin_logged_in'):
-            flash('Please log in to access admin area', 'error')
-            return redirect(url_for('admin_login'))
-        
-        # Check session timeout (1 hour default)
-        import time
-        session_timeout = 3600  # 1 hour
-        last_activity = session.get('last_activity')
-        
-        if last_activity and (time.time() - last_activity) > session_timeout:
-            session.clear()
-            flash('Session expired. Please log in again.', 'warning')
-            return redirect(url_for('admin_login'))
-        
-        session['last_activity'] = time.time()
-        return f(*args, **kwargs)
-    return decorated_function
-
-# Add this to the beginning of any APK route
 def ensure_apk_tables_exist():
     """Ensure APK tables exist before using them"""
     try:
@@ -1131,6 +1120,27 @@ def ensure_apk_tables_exist():
     except Exception as e:
         print(f"❌ Error checking APK tables: {e}")
         return False
+# Authentication decorator
+def require_admin_auth(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('admin_logged_in'):
+            flash('Please log in to access admin area', 'error')
+            return redirect(url_for('admin_login'))
+        
+        # Check session timeout (1 hour default)
+        import time
+        session_timeout = 3600  # 1 hour
+        last_activity = session.get('last_activity')
+        
+        if last_activity and (time.time() - last_activity) > session_timeout:
+            session.clear()
+            flash('Session expired. Please log in again.', 'warning')
+            return redirect(url_for('admin_login'))
+        
+        session['last_activity'] = time.time()
+        return f(*args, **kwargs)
+    return decorated_function
 
 def get_client_info(request):
     """Extract client information from request (works in cloud and local)"""
@@ -1443,7 +1453,9 @@ def book_appointment():
         # Validate required fields
         if not all([name, email, phone, service, date, time]):
             return jsonify({"error": "Alle velden zijn verplicht"}), 400
-        
+        # Special validation for "Overig" service
+        if service == "Overig" and not message.strip():
+            return jsonify({"error": "Voor de service 'Overig' is een beschrijving verplicht in het berichtenveld"}), 400
         # Validate email format
         email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_pattern, email):
@@ -1527,6 +1539,7 @@ def book_appointment():
                             <p><strong>Telefoon:</strong> {phone}</p>
                             <p><strong>Email:</strong> {email}</p>
                             {f'<p><strong>Bericht:</strong> {message}</p>' if message else ''}
+                            {f'<div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0;"><strong>ℹ️ Specifieke wensen ({service}):</strong><br>{message}</div>' if service == 'Overig' and message else ''}
                         </div>
                         
                         <div class="calendar-buttons">
@@ -1578,6 +1591,11 @@ def book_appointment():
                     .header {{ background: #e74c3c; color: white; padding: 20px; text-align: center; }}
                     .content {{ padding: 20px; background: #f9f9f9; }}
                     .booking-details {{ background: white; padding: 15px; border-radius: 5px; margin: 15px 0; }}
+                    .calendar-section {{ background: #f0f8ff; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center; }}
+                    .calendar-btn {{ display: inline-block; padding: 12px 25px; margin: 5px; text-decoration: none; border-radius: 5px; font-weight: bold; color: white; }}
+                    .ics-btn {{ background: #28a745; }}
+                    .google-btn {{ background: #4285f4; }}
+                    .outlook-btn {{ background: #0078d4; }}
                 </style>
             </head>
             <body>
@@ -1599,17 +1617,49 @@ def book_appointment():
                             <p><strong>Telefoon:</strong> {phone}</p>
                             <p><strong>Email:</strong> {email}</p>
                             {f'<p><strong>Bericht:</strong> {message}</p>' if message else ''}
+                            {f'<div style="background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 10px 0; border-left: 4px solid #28a745;"><strong>🔧 Specifieke Service Wens:</strong><br>{message}</div>' if service == 'Overig' and message else f'<p><strong>Bericht:</strong> {message}</p>' if message else ''}
                         </div>
                         
-                        <p><a href="{calendar_data['outlook_url']}" style="background: #0078d4; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">📅 Voeg toe aan Outlook</a></p>
+                        <div class="calendar-section">
+                            <h3>📅 Voeg toe aan uw agenda</h3>
+                            <p>Klik op onderstaande knoppen om deze afspraak toe te voegen aan uw agenda:</p>
+                            
+                            <a href="{calendar_data['ics_url']}" class="calendar-btn ics-btn">
+                                📥 Download ICS Bestand
+                            </a>
+                            
+                            <a href="{calendar_data['google_url']}" class="calendar-btn google-btn" target="_blank">
+                                📅 Google Agenda
+                            </a>
+                            
+                            <a href="{calendar_data['outlook_url']}" class="calendar-btn outlook-btn" target="_blank">
+                                📅 Outlook Web
+                            </a>
+                            
+                            <p style="margin-top: 15px; font-size: 13px; color: #666;">
+                                <strong>💡 Tip:</strong> Het ICS bestand werkt met alle agenda applicaties
+                            </p>
+                        </div>
+                        
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 15px 0;">
+                            <h4 style="margin: 0 0 10px 0;">📋 Actie vereist:</h4>
+                            <ul style="margin: 0; padding-left: 20px;">
+                                <li>✅ Bevestig de afspraak in uw agenda</li>
+                                <li>📞 Bel klant indien nodig: {phone}</li>
+                                <li>📧 Klant heeft bevestiging ontvangen op: {email}</li>
+                            </ul>
+                        </div>
+                        
+                        <p style="margin-top: 20px;">
+                            <strong>Deze afspraak is automatisch bevestigd en de klant heeft een bevestigingsmail ontvangen.</strong>
+                        </p>
                     </div>
                 </div>
             </body>
             </html>
             """
-            
+
             send_email(ADMIN_EMAIL, f"Nieuwe afspraak: {name} - {date} {time}", admin_html)
-            
         except Exception as email_error:
             print(f"⚠️ Email error: {email_error}")
             # Don't fail the booking if email fails
@@ -1846,7 +1896,6 @@ def download_database():
         import os
         
         if os.path.exists(DB_FILE):
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             download_name = f'koree_database_{timestamp}.db'
             
             print(f"📥 Database download by admin")
@@ -2235,7 +2284,57 @@ def admin_create_apk_client():
         traceback.print_exc()
         flash(f'Fout bij aanmaken APK klant: {str(e)}', 'error')
         return redirect(url_for('admin_add_apk_client'))
+@app.route('/admin/services')
+@require_admin_auth
+def admin_services():
+    """View and manage services"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        cursor = connection.cursor()
+        cursor.execute("""
+            SELECT id, name, description, price, duration_minutes, active, created_at
+            FROM services 
+            ORDER BY name ASC
+        """)
+        
+        services = cursor.fetchall()
+        cursor.close()
+        connection.close()
+        
+        return render_template('admin_services.html', services=services)
+        
+    except Exception as e:
+        print(f"❌ Admin services error: {e}")
+        flash('Error loading services', 'error')
+        return redirect(url_for('admin_dashboard'))
 
+@app.route('/admin/toggle-service/<int:service_id>')
+@require_admin_auth
+def admin_toggle_service(service_id):
+    """Toggle service active status"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_services'))
+        
+        cursor = connection.cursor()
+        cursor.execute("UPDATE services SET active = NOT active WHERE id = ?", (service_id,))
+        connection.commit()
+        cursor.close()
+        connection.close()
+        
+        flash('Service status updated', 'success')
+        
+    except Exception as e:
+        print(f"❌ Toggle service error: {e}")
+        flash('Error updating service', 'error')
+    
+    return redirect(url_for('admin_services'))
 @app.route('/admin/send-apk-reminders')
 @require_admin_auth
 def admin_send_apk_reminders():
@@ -2600,8 +2699,168 @@ def debug_init_analytics_tables():
         
     except Exception as e:
         return f"❌ Error: {str(e)}", 500
+@app.route('/admin/add-overig-service')
+@require_admin_auth
+def admin_add_overig_service():
+    """Manually add Overig service if missing"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            flash('Database connection failed', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        cursor = connection.cursor()
+        
+        # Check if "Overig" already exists
+        cursor.execute("SELECT COUNT(*) FROM services WHERE name = 'Overig'")
+        if cursor.fetchone()[0] > 0:
+            flash('"Overig" service already exists', 'info')
+        else:
+            # Add "Overig" service
+            cursor.execute("""
+                INSERT INTO services (name, description, price, duration_minutes, active) 
+                VALUES (?, ?, ?, ?, ?)
+            """, ("Overig", "Andere diensten en specifieke wensen", 0.0, 60, 1))
+            
+            connection.commit()
+            flash('"Overig" service added successfully', 'success')
+        
+        cursor.close()
+        connection.close()
+        
+        return redirect(url_for('admin_dashboard'))
+        
+    except Exception as e:
+        print(f"❌ Add Overig service error: {e}")
+        flash('Error adding Overig service', 'error')
+        return redirect(url_for('admin_dashboard'))
+def ensure_overig_service_exists():
+    """Ensure 'Overig' service exists in database"""
+    try:
+        connection = get_db_connection()
+        if connection is None:
+            return False
+        
+        cursor = connection.cursor()
+        
+        # Check if "Overig" service exists
+        cursor.execute("SELECT COUNT(*) FROM services WHERE name = 'Overig'")
+        if cursor.fetchone()[0] == 0:
+            print("🔧 Adding 'Overig' service to database...")
+            cursor.execute("""
+                INSERT INTO services (name, description, price, duration_minutes, active) 
+                VALUES (?, ?, ?, ?, ?)
+            """, ("Overig", "Andere diensten en specifieke wensen", 0.0, 60, 1))
+            
+            connection.commit()
+            print("✅ 'Overig' service added successfully")
+        
+        cursor.close()
+        connection.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error ensuring Overig service: {e}")
+        return False
 
+def test_all_godaddy_configs():
+    """Test all possible GoDaddy SMTP configurations"""
+    
+    configs = [
+        # Config 1: Standard Workspace Email with SSL
+        {
+            'name': 'GoDaddy Workspace (SSL)',
+            'server': 'smtpout.secureserver.net',
+            'port': 465,
+            'ssl': True,
+            'tls': False
+        },
+        # Config 2: Standard Workspace Email with TLS
+        {
+            'name': 'GoDaddy Workspace (TLS)',
+            'server': 'smtpout.secureserver.net',
+            'port': 587,
+            'ssl': False,
+            'tls': True
+        },
+        # Config 3: Alternative SMTP server
+        {
+            'name': 'GoDaddy Alternative SMTP',
+            'server': 'smtp.secureserver.net',
+            'port': 465,
+            'ssl': True,
+            'tls': False
+        },
+        # Config 4: Relay server
+        {
+            'name': 'GoDaddy Relay',
+            'server': 'relay-hosting.secureserver.net',
+            'port': 25,
+            'ssl': False,
+            'tls': False
+        },
+        # Config 5: Port 80 (some accounts)
+        {
+            'name': 'GoDaddy Port 80',
+            'server': 'smtpout.secureserver.net',
+            'port': 80,
+            'ssl': False,
+            'tls': False
+        }
+    ]
+    
+    print("\n" + "="*60)
+    print("🧪 TESTING ALL GODADDY SMTP CONFIGURATIONS")
+    print("="*60)
+    
+    for config in configs:
+        try:
+            print(f"\n🔍 Testing: {config['name']}")
+            print(f"   Server: {config['server']}:{config['port']}")
+            
+            # Create connection
+            if config['ssl']:
+                server = smtplib.SMTP_SSL(config['server'], config['port'], timeout=30)
+            else:
+                server = smtplib.SMTP(config['server'], config['port'], timeout=30)
+                if config['tls']:
+                    server.starttls()
+            
+            # Try login
+            server.login(MAIL_USERNAME, MAIL_PASSWORD)
+            server.quit()
+            
+            print(f"✅ SUCCESS! This configuration works:")
+            print(f"   MAIL_SERVER={config['server']}")
+            print(f"   MAIL_PORT={config['port']}")
+            print(f"   SSL={'Yes' if config['ssl'] else 'No'}")
+            print(f"   TLS={'Yes' if config['tls'] else 'No'}")
+            
+            return config
+            
+        except smtplib.SMTPAuthenticationError as e:
+            print(f"❌ Authentication Failed: {e}")
+            print(f"   → Check GoDaddy settings: Enable SMTP access")
+            
+        except smtplib.SMTPConnectError as e:
+            print(f"❌ Connection Failed: {e}")
+            print(f"   → Server/port may be wrong")
+            
+        except Exception as e:
+            print(f"❌ Failed: {e}")
+    
+    print("\n" + "="*60)
+    print("❌ None of the configurations worked")
+    print("🔧 Action required:")
+    print("   1. Log into GoDaddy email account")
+    print("   2. Enable 'SMTP Access' in settings")
+    print("   3. Disable two-factor authentication")
+    print("   4. Check if password is correct")
+    print("="*60)
+    
+    return None
 # Application startup
+
 if __name__ == "__main__":
     print("=" * 60)
     print("🚗 KOREE AUTOSERVICE BOOKING SYSTEM")
@@ -2618,8 +2877,26 @@ if __name__ == "__main__":
     # Consolidate and test database
     consolidate_databases()
     upgrade_database_schema()
-    test_email_connection()
-    test_godaddy_smtp_variants()
+    ensure_overig_service_exists()
+    # Initialize APK system
+    print("🔧 Checking APK system...")
+    if not ensure_apk_tables_exist():
+        print("⚠️ APK tables missing, creating them...")
+        init_apk_database()
+    else:
+        print("✅ APK system ready")
+
+    # Test email configuration
+    if MAIL_USERNAME and MAIL_PASSWORD:
+        print("🧪 Testing email configuration...")
+        working_config = test_all_godaddy_configs()
+        
+        if working_config:
+            print(f"\n✅ Email system ready with {working_config['name']}")
+        else:
+            print("\n⚠️ Email system NOT working - check GoDaddy settings")
+    else:
+        print("⚠️ Email credentials not configured")
     
     if test_database_connection():
         print("✅ Database connection successful!")
@@ -2661,6 +2938,5 @@ if __name__ == "__main__":
         else:
             print("❌ Failed to create database!")
             print("Please check your database configuration and permissions.")
-
 
 

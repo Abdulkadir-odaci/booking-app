@@ -1,6 +1,14 @@
-Flask==2.3.3
-Flask-Mail==0.9.1
+# Flask framework
+Flask==3.0.0
+
+# Environment variables
 python-dotenv==1.0.0
-Werkzeug==2.3.7
-requests==2.31.0
+
+# Background task scheduling (APK reminders)
+APScheduler==3.10.4
+
+# User agent parsing (analytics)
 user-agents==2.2.0
+
+# HTTP requests (RDW API)
+requests==2.31.0
