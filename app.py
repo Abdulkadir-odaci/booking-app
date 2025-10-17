@@ -130,13 +130,13 @@ def test_email_connection():
 
 # Business hours configuration
 BUSINESS_HOURS = {
-    'monday': {'start': '08:00', 'end': '17:00'},
-    'tuesday': {'start': '08:00', 'end': '17:00'},
-    'wednesday': {'start': '08:00', 'end': '17:00'},
-    'thursday': {'start': '08:00', 'end': '17:00'},
-    'friday': {'start': '08:00', 'end': '17:00'},
-    'saturday': {'start': '09:00', 'end': '17:00'},
-    'sunday': {'start': '09:00', 'end': '15:00'},
+    'monday': {'start': '08:00', 'end': '17:30'},
+    'tuesday': {'start': '08:00', 'end': '17:30'},
+    'wednesday': {'start': '08:00', 'end': '17:30'},
+    'thursday': {'start': '08:00', 'end': '17:30'},
+    'friday': {'start': '08:00', 'end': '17:30'},
+    'saturday': {'start': '09:00', 'end': '15:00'},
+    'sunday': 'gesloten',
 }
 
 def consolidate_databases():
@@ -384,29 +384,86 @@ def test_database_connection():
         print(f"❌ Database test failed: {e}")
         return False
 
-def generate_time_slots():
-    """Generate 30-minute time slots for business hours"""
-    time_slots = []
-    
-    # Business hours: 8:00 - 16:30 (30-minute slots)
-    start_hour = 8
-    end_hour = 17  # Will generate up to 16:30
-    
-    current_hour = start_hour
-    current_minute = 0
-    
-    while current_hour < end_hour:
-        time_str = f"{current_hour:02d}:{current_minute:02d}"
-        time_slots.append(time_str)
+def generate_time_slots(selected_date=None):
+    """Generate 30-minute time slots based on business hours for the selected day"""
+    try:
+        time_slots = []
         
-        # Add 30 minutes
-        current_minute += 30
-        if current_minute >= 60:
-            current_minute = 0
-            current_hour += 1
-    
-    print(f"✅ Generated {len(time_slots)} time slots: {time_slots}")
-    return time_slots
+        # If no date provided, use today
+        if selected_date:
+            try:
+                booking_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+            except:
+                booking_date = datetime.now().date()
+        else:
+            booking_date = datetime.now().date()
+        
+        # Get day name (0=Monday, 6=Sunday)
+        day_name = booking_date.strftime('%A').lower()
+        day_number = booking_date.weekday()
+        
+        print(f"📅 Generating time slots for {day_name} ({booking_date})")
+        
+        # Check business hours for this day
+        if day_name not in BUSINESS_HOURS:
+            print(f"❌ Day {day_name} not in business hours")
+            return []
+        
+        day_hours = BUSINESS_HOURS[day_name]
+        
+        # If day is closed (value is 'gesloten'), return empty list - FIXED: removed 'gestolen'
+        if day_hours == 'gesloten':
+            print(f"⛔ {day_name.capitalize()} is gesloten (closed)")
+            return []
+        
+        # Parse opening hours
+        try:
+            start_time_str = day_hours['start']  # e.g., "08:00"
+            end_time_str = day_hours['end']      # e.g., "17:30"
+            
+            start_hour = int(start_time_str.split(':')[0])
+            start_minute = int(start_time_str.split(':')[1])
+            
+            end_hour = int(end_time_str.split(':')[0])
+            end_minute = int(end_time_str.split(':')[1])
+            
+            print(f"🕐 Business hours: {start_time_str} - {end_time_str}")
+            
+        except Exception as parse_error:
+            print(f"❌ Error parsing business hours: {parse_error}")
+            return []
+        
+        # Generate time slots in 30-minute intervals
+        current_hour = start_hour
+        current_minute = start_minute
+        
+        while True:
+            # Create time string
+            time_str = f"{current_hour:02d}:{current_minute:02d}"
+            
+            # Check if this time is before closing time
+            current_total_minutes = current_hour * 60 + current_minute
+            end_total_minutes = end_hour * 60 + end_minute
+            
+            if current_total_minutes >= end_total_minutes:
+                break
+            
+            time_slots.append(time_str)
+            
+            # Add 30 minutes
+            current_minute += 30
+            if current_minute >= 60:
+                current_minute = 0
+                current_hour += 1
+        
+        print(f"✅ Generated {len(time_slots)} time slots: {time_slots[:3]}...{time_slots[-3:] if len(time_slots) > 3 else ''}")
+        return time_slots
+        
+    except Exception as e:
+        print(f"❌ Error generating time slots: {e}")
+        import traceback
+        traceback.print_exc()
+        return []
 def test_godaddy_smtp_variants():
     """Test different GoDaddy SMTP configurations"""
     configs = [
@@ -1348,6 +1405,23 @@ def get_available_times():
                 "message": "Kan geen afspraken in het verleden maken"
             })
         
+        # CHECK IF DAY IS CLOSED
+        day_name = booking_date.strftime('%A').lower()
+        print(f"📅 Day name: {day_name}")
+        
+        if day_name in BUSINESS_HOURS:
+            day_hours = BUSINESS_HOURS[day_name]
+            
+            # Check if closed
+            if day_hours == 'gestolen' or day_hours == 'gesloten':
+                print(f"⛔ {day_name} is CLOSED - rejecting booking")
+                return jsonify({
+                    "success": False,
+                    "error": f"We are closed on {day_name}",
+                    "available_times": [],
+                    "message": f"Op {day_name} zijn we gesloten"
+                })
+        
         connection = get_db_connection()
         if connection is None:
             print("❌ Database connection failed")
@@ -1374,9 +1448,21 @@ def get_available_times():
         cursor.close()
         connection.close()
         
-        # Generate all possible time slots
-        all_time_slots = generate_time_slots()
-        print(f"⏰ Generated time slots: {all_time_slots}")
+        # Generate time slots based on business hours for this day
+        all_time_slots = generate_time_slots(date)
+        
+        # If no time slots (day is closed), return empty
+        if not all_time_slots:
+            print(f"⛔ No time slots available for {day_name} - day is closed")
+            return jsonify({
+                "success": False,
+                "error": f"We are closed on {day_name}",
+                "available_times": [],
+                "message": f"Op {day_name} zijn we gesloten",
+                "day_name": day_name
+            })
+        
+        print(f"⏰ Generated time slots for {day_name}: {all_time_slots}")
         
         # Get current time for today's comparison
         now = datetime.now()
@@ -1416,12 +1502,13 @@ def get_available_times():
         return jsonify({
             "success": True,
             "date": date,
+            "day_name": day_name,
             "available_times": available_times,
             "booked_times": booked_times,
             "total_slots": len(all_time_slots),
             "available_count": len(available_times),
             "is_today": is_today,
-            "message": f"{len(available_times)} beschikbare tijden gevonden" if available_times else "Geen beschikbare tijden"
+            "message": f"{len(available_times)} beschikbare tijden gevonden" if available_times else f"Geen beschikbare tijden op {day_name}"
         })
         
     except Exception as e:

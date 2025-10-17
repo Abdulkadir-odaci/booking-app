@@ -116,8 +116,6 @@
         </div>
     </section>
 
-
-
     <!-- About Section -->
     <section id="about" class="py-5 bg-light">
         <div class="container">
@@ -153,8 +151,6 @@
             </div>
         </div>
     </section>
-
-
 
     <!-- Services Section -->
     <section id="services" class="py-5">
@@ -410,7 +406,7 @@
                                 <label for="message" class="form-label">Bericht</label>
                                 <textarea class="form-control" id="message" name="message" rows="3" placeholder="Vertel ons meer over uw auto of specifieke wensen..."></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">
+                            <button type="submit" id="submitBtn" class="btn btn-primary w-100">
                                 <i class="fas fa-calendar-check"></i> Afspraak Bevestigen
                             </button>
                         </form>
@@ -440,8 +436,8 @@
                     <div class="contact-info">
                         <h5 class="text-warning mb-3">Contactgegevens</h5>
                         <p><i class="fas fa-map-marker-alt me-2"></i> Fenacoliuslaan 60-64, 3143 AE Maassluis</p>
-                        <p><i class="fas fa-phone me-2"></i> 010-5928497</p>
-                        <p><i class="fas fa-phone me-2"></i> +31 6 30889760</p>
+                        <p><i class="fas fa-phone me-2"></i> 010-5928497 (vast)</p>
+                        <p><i class="fas fa-phone me-2"></i> 06-30889760 (mobiel)</p>
                         <p><i class="fas fa-envelope me-2"></i> info@koreeautoservice.nl</p>
                         <p><i class="fab fa-whatsapp me-2"></i> 
                             <a href="https://wa.me/31630889760" class="text-warning" target="_blank">
@@ -459,7 +455,7 @@
                                 <p class="mb-1">Zondag</p>
                             </div>
                             <div class="col-6">
-                                <p class="mb-1 text-warning">8:00 - 17:00</p>
+                                <p class="mb-1 text-warning">8:00 - 17:30</p>
                                 <p class="mb-1 text-warning">9:00 - 15:00</p>
                                 <p class="mb-1 text-warning">gesloten</p>
                             </div>
@@ -564,22 +560,19 @@ function loadServices() {
             }
             
             if (data.success && data.services && data.services.length > 0) {
-                // Clear existing options except the first one
                 serviceSelect.innerHTML = '<option value="">Kies een service</option>';
                 
                 data.services.forEach(service => {
                     const option = document.createElement('option');
                     option.value = service.name;
-                    // Display only service name (no price)
                     option.textContent = service.name;
                     serviceSelect.appendChild(option);
                     console.log(`  ✅ Added service: ${service.name}`);
                 });
                 
-                console.log(`✅ Loaded ${data.services.length} services (without prices)`);
+                console.log(`✅ Loaded ${data.services.length} services`);
             } else {
-                console.log('⚠️ No services data found or API returned error:', data);
-                // Add fallback services (without prices)
+                console.log('⚠️ No services data found');
                 serviceSelect.innerHTML = `
                     <option value="">Kies een service</option>
                     <option value="APK Keuring">APK Keuring</option>
@@ -589,13 +582,10 @@ function loadServices() {
                     <option value="Banden Service">Banden Service</option>
                     <option value="Airco Service">Airco Service</option>
                 `;
-                console.log('⚠️ Using fallback services (no prices)');
             }
         })
         .catch(error => {
             console.error('❌ Error loading services:', error);
-            
-            // Add fallback services if API fails (without prices)
             const serviceSelect = document.getElementById('service');
             if (serviceSelect) {
                 serviceSelect.innerHTML = `
@@ -607,7 +597,6 @@ function loadServices() {
                     <option value="Banden Service">Banden Service</option>
                     <option value="Airco Service">Airco Service</option>
                 `;
-                console.log('⚠️ Using fallback services due to error (no prices)');
             }
         });
 }
@@ -621,12 +610,10 @@ function setupDateInput() {
     
     console.log('📅 Setting up date input...');
     
-    // Set minimum date to today
     const today = new Date();
     const todayString = today.toISOString().split('T')[0];
     dateInput.min = todayString;
     
-    // Set maximum date to 3 months from now
     const maxDate = new Date();
     maxDate.setMonth(maxDate.getMonth() + 3);
     const maxDateString = maxDate.toISOString().split('T')[0];
@@ -655,84 +642,87 @@ function resetTimeSelection() {
 }
 
 function loadAvailableTimes(selectedDate) {
-    console.log('📅 Loading times for:', selectedDate);
-    
-    const timeSelect = document.getElementById('time');
-    const timeLoading = document.getElementById('time-loading');
-    
-    if (!timeSelect) {
-        console.error('❌ Time select element not found');
+    if (!selectedDate) {
+        console.log('❌ No date selected');
         return;
     }
     
-    // Show loading state
+    const timeSelect = document.getElementById('time');
+    if (!timeSelect) {
+        console.error('❌ Time select element not found!');
+        return;
+    }
+    
+    const timeLoading = document.getElementById('time-loading');
     if (timeLoading) {
         timeLoading.style.display = 'block';
     }
-    timeSelect.disabled = true;
-    timeSelect.innerHTML = '<option value="">⏳ Tijden laden...</option>';
     
-    const url = `/api/available-times?date=${encodeURIComponent(selectedDate)}`;
-    console.log('📡 Fetching:', url);
+    const date = new Date(selectedDate);
+    const dayName = date.toLocaleDateString('nl-NL', { weekday: 'long' });
+    const dayOfWeek = date.getDay();
+    
+    console.log(`📅 Selected: ${dayName} (${selectedDate})`);
+    
+    const closedDays = [0];
+    
+    if (closedDays.includes(dayOfWeek)) {
+        console.log(`⛔ ${dayName} is closed`);
+        timeSelect.innerHTML = `<option value="">Op ${dayName} zijn we gesloten</option>`;
+        timeSelect.disabled = true;
+        document.getElementById('submitBtn').disabled = true;
+        if (timeLoading) {
+            timeLoading.style.display = 'none';
+        }
+        return;
+    }
+    
+    // For Saturday, check if time is before 15:00
+    if (dayOfWeek === 6) { // Saturday
+        console.log(`📅 Saturday selected - maximum time 15:00`);
+    }
+    
+    const url = `/api/available-times?date=${selectedDate}`;
     
     fetch(url)
         .then(response => {
-            console.log('📡 Times API Response status:', response.status);
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
+            console.log('📡 Response status:', response.status);
             return response.json();
         })
         .then(data => {
-            console.log('📊 Times API Data received:', data);
+            console.log('✅ API response:', data);
             
-            // Hide loading
             if (timeLoading) {
                 timeLoading.style.display = 'none';
             }
             
-            timeSelect.innerHTML = '<option value="">Kies een tijd...</option>';
-            timeSelect.disabled = false;
-            
             if (data.success && data.available_times && data.available_times.length > 0) {
-                data.available_times.forEach(timeString => {
+                timeSelect.innerHTML = '<option value="">Kies een tijd...</option>';
+                data.available_times.forEach(time => {
                     const option = document.createElement('option');
-                    option.value = timeString;
-                    option.textContent = timeString;
+                    option.value = time;
+                    option.text = time;
                     timeSelect.appendChild(option);
-                    console.log(`  ✅ Added time: ${timeString}`);
                 });
-                
-                console.log(`✅ Loaded ${data.available_times.length} available times`);
-            } else if (data.success && data.available_times && data.available_times.length === 0) {
-                timeSelect.innerHTML = '<option value="">Geen tijden beschikbaar op deze datum</option>';
-                console.log('⚠️ No available times for this date');
+                console.log(`✅ ${data.available_times.length} times available`);
+                timeSelect.disabled = false;
+                document.getElementById('submitBtn').disabled = false;
             } else {
-                timeSelect.innerHTML = '<option value="">Fout bij laden tijden</option>';
-                console.error('❌ API error:', data.error || 'Unknown error');
+                const message = data.message || `Geen beschikbare tijden op ${dayName}`;
+                timeSelect.innerHTML = `<option value="">${message}</option>`;
+                console.log(`❌ No times: ${message}`);
+                timeSelect.disabled = true;
+                document.getElementById('submitBtn').disabled = true;
             }
         })
         .catch(error => {
             console.error('❌ Error loading times:', error);
-            
-            // Hide loading
             if (timeLoading) {
                 timeLoading.style.display = 'none';
             }
-            
-            // Provide fallback times for testing
-            timeSelect.innerHTML = `
-                <option value="">Kies een tijd...</option>
-                <option value="09:00">09:00</option>
-                <option value="10:00">10:00</option>
-                <option value="11:00">11:00</option>
-                <option value="13:00">13:00</option>
-                <option value="14:00">14:00</option>
-                <option value="15:00">15:00</option>
-                <option value="16:00">16:00</option>
-            `;
-            timeSelect.disabled = false;
-            console.log('⚠️ Using fallback times due to API error');
+            timeSelect.innerHTML = '<option value="">Kies een tijd...</option>';
+            timeSelect.disabled = true;
+            alert('⚠️ Fout bij laden van beschikbare tijden. Probeer het opnieuw.');
         });
 }
 
@@ -749,7 +739,6 @@ function setupBookingForm() {
         e.preventDefault();
         console.log('📝 Form submitted');
         
-        // Validate form before submission
         const timeSelect = document.getElementById('time');
         const serviceSelect = document.getElementById('service');
         const dateInput = document.getElementById('date');
@@ -787,7 +776,6 @@ function setupBookingForm() {
                     alert(`✅ ${data.message}`);
                     this.reset();
                     resetTimeSelection();
-                    // Reload services
                     loadServices();
                 } else {
                     alert(`❌ ${data.error || 'Er is een fout opgetreden'}`);
@@ -805,11 +793,9 @@ function setupBookingForm() {
     });
 }
 
-// Add this to your existing JavaScript - don't replace anything else
 function setupSmoothScrolling() {
     console.log('🔗 Setting up smooth scrolling...');
     
-    // Get all anchor links that start with #
     const anchorLinks = document.querySelectorAll('a[href^="#"]');
     
     anchorLinks.forEach(link => {
@@ -826,13 +812,11 @@ function setupSmoothScrolling() {
                 return;
             }
             
-            // Scroll to the target element
             targetElement.scrollIntoView({
                 behavior: 'smooth',
                 block: 'start'
             });
             
-            // Close the navbar if open (for mobile view)
             const navbarCollapse = document.getElementById('navbarNav');
             if (navbarCollapse) {
                 const bsCollapse = bootstrap.Collapse.getInstance(navbarCollapse);
